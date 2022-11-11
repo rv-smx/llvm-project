@@ -1610,3 +1610,57 @@ def int_riscv_sm4ed      : ScalarCryptoByteSelectAny;
 def int_riscv_sm3p0      : ScalarCryptoGprIntrinsicAny;
 def int_riscv_sm3p1      : ScalarCryptoGprIntrinsicAny;
 } // TargetPrefix = "riscv"
+
+//===----------------------------------------------------------------------===//
+// Stream-based Memory Access Extension (SMX)
+
+let TargetPrefix = "riscv" in {
+
+  // Input: (iteration number)
+  def int_riscv_smx_cfg_iv
+      : GCCBuiltin<"__builtin_smx_cfg_iv">,
+        Intrinsic<[],
+                  [llvm_i64_ty],
+                  [IntrWillReturn]>;
+
+  // Input: (start address, stride, dependent stream, RW, pattern, log2(width))
+  def int_riscv_smx_cfg_ms
+      : GCCBuiltin<"__builtin_smx_cfg_ms">,
+        Intrinsic<[],
+                  [llvm_ptr_ty, llvm_i64_ty, llvm_i8_ty, llvm_i8_ty, llvm_i8_ty, llvm_i8_ty],
+                  [IntrWillReturn]>;
+
+  def int_riscv_smx_ready
+      : GCCBuiltin<"__builtin_smx_ready">,
+        Intrinsic<[], [], [IntrWillReturn]>;
+
+  def int_riscv_smx_end
+      : GCCBuiltin<"__builtin_smx_ready">,
+        Intrinsic<[], [], [IntrWillReturn]>;
+
+  // Output: (read data)
+  // Input: (stream ID, data width, data selector)
+  class SMXLoadIntrinsic
+      : Intrinsic<[llvm_any_ty],
+                  [llvm_i8_ty, llvm_i8_ty, llvm_i8_ty],
+                  [IntrWillReturn, IntrReadMem]>;
+
+  // Input: (write data, stream ID)
+  class SMXStoreIntrinsic
+      : Intrinsic<[],
+                  [llvm_any_ty, llvm_i8_ty],
+                  [IntrWillReturn, IntrWriteMem]>;
+
+  def int_riscv_smx_ld : GCCBuiltin<"__builtin_smx_ld">, SMXLoadIntrinsic;
+  def int_riscv_smx_st : GCCBuiltin<"__builtin_smx_st">, SMXStoreIntrinsic;
+  def int_riscv_smx_rd_iv : GCCBuiltin<"__builtin_smx_rd_iv">, SMXLoadIntrinsic;
+  def int_riscv_smx_wr_iv : GCCBuiltin<"__builtin_smx_wr_iv">, SMXStoreIntrinsic;
+
+  // Input: (stream ID, step)
+  def int_riscv_smx_step
+      : GCCBuiltin<"__builtin_smx_step">,
+        Intrinsic<[],
+                  [llvm_i8_ty, llvm_i64_ty],
+                  [IntrWillReturn]>;
+
+} // TargetPrefix = "riscv"
