@@ -122,5 +122,20 @@ TARGET_BUILTIN(__builtin_riscv_sm4ks, "LiLiLiIUc", "nc", "zksed")
 TARGET_BUILTIN(__builtin_riscv_sm3p0, "LiLi", "nc", "zksh")
 TARGET_BUILTIN(__builtin_riscv_sm3p1, "LiLi", "nc", "zksh")
 
+// Xsmx extension
+TARGET_BUILTIN(__builtin_smx_cfg_iv, "vUWi", "n", "xsmx")
+TARGET_BUILTIN(__builtin_smx_cfg_ms, "vv*UWiIUcIUcIUcIUc", "n", "xsmx")
+TARGET_BUILTIN(__builtin_smx_ready, "v", "n", "xsmx")
+TARGET_BUILTIN(__builtin_smx_end, "v", "n", "xsmx")
+TARGET_BUILTIN(__builtin_smx_ld, "zIUcIUc", "n", "xsmx")
+TARGET_BUILTIN(__builtin_smx_st, "vzIUc", "n", "xsmx")
+TARGET_BUILTIN(__builtin_smx_fld_32, "fIUcIUc", "n", "xsmx")
+TARGET_BUILTIN(__builtin_smx_fst_32, "vfIUc", "n", "xsmx")
+TARGET_BUILTIN(__builtin_smx_fld_64, "dIUcIUc", "n", "xsmx")
+TARGET_BUILTIN(__builtin_smx_fst_64, "vdIUc", "n", "xsmx")
+TARGET_BUILTIN(__builtin_smx_rd_iv, "zIUcIUc", "n", "xsmx")
+TARGET_BUILTIN(__builtin_smx_wr_iv, "vzIUc", "n", "xsmx")
+TARGET_BUILTIN(__builtin_smx_step, "vIUcWi", "n", "xsmx")
+
 #undef BUILTIN
 #undef TARGET_BUILTIN
