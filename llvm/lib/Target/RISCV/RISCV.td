@@ -434,6 +434,13 @@ def HasStdExtZicbop : Predicate<"Subtarget->hasStdExtZicbop()">,
                                 AssemblerPredicate<(all_of FeatureStdExtZicbop),
                                 "'Zicbop' (Cache-Block Prefetch Instructions)">;
 
+def FeatureExtXsmx
+    : SubtargetFeature<"xsmx", "HasExtXsmx", "true",
+                       "'Xsmx' (Stream-based Memory Access Extension)">;
+def HasExtXsmx : Predicate<"Subtarget->hasExtXsmx()">,
+                           AssemblerPredicate<(all_of FeatureExtXsmx),
+                           "'Xsmx' (Stream-based Memory Access Extension)">;
+
 def Feature64Bit
     : SubtargetFeature<"64bit", "HasRV64", "true", "Implements RV64">;
 def IsRV64 : Predicate<"Subtarget->is64Bit()">,
