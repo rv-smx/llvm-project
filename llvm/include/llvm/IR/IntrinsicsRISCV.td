@@ -1619,13 +1619,14 @@ let TargetPrefix = "riscv" in {
   // Input: (iteration number)
   def int_riscv_smx_cfg_iv
       : ClangBuiltin<"__builtin_smx_cfg_iv">,
-        Intrinsic<[], [llvm_i64_ty], [IntrWillReturn]>;
+        Intrinsic<[], [llvm_i32_ty], [IntrWillReturn]>;
 
-  // Input: (start address, stride, dependent stream, RW, pattern, log2(width))
+  // Input: (start address, stride, dependent stream, read, write, pattern, log2(width))
   def int_riscv_smx_cfg_ms
       : ClangBuiltin<"__builtin_smx_cfg_ms">,
         Intrinsic<[],
-                  [llvm_ptr_ty, llvm_i64_ty, llvm_i8_ty, llvm_i8_ty, llvm_i8_ty, llvm_i8_ty],
+                  [llvm_ptr_ty, llvm_i32_ty, llvm_i8_ty,
+                   llvm_i1_ty, llvm_i1_ty, llvm_i8_ty, llvm_i8_ty],
                   [IntrWillReturn]>;
 
   def int_riscv_smx_ready
@@ -1638,27 +1639,37 @@ let TargetPrefix = "riscv" in {
 
   // Output: (read data)
   // Input: (stream ID, data selector)
-  class SMXLoadIntrinsic
+  def int_riscv_smx_ld
       : Intrinsic<[llvm_any_ty],
                   [llvm_i8_ty, llvm_i8_ty],
                   [IntrWillReturn, IntrReadMem]>;
 
   // Input: (write data, stream ID)
-  class SMXStoreIntrinsic
+  def int_riscv_smx_st
       : Intrinsic<[],
                   [llvm_any_ty, llvm_i8_ty],
                   [IntrWillReturn, IntrWriteMem]>;
 
-  def int_riscv_smx_ld : ClangBuiltin<"__builtin_smx_ld">, SMXLoadIntrinsic;
-  def int_riscv_smx_st : ClangBuiltin<"__builtin_smx_st">, SMXStoreIntrinsic;
-  def int_riscv_smx_rd_iv : ClangBuiltin<"__builtin_smx_rd_iv">, SMXLoadIntrinsic;
-  def int_riscv_smx_wr_iv : ClangBuiltin<"__builtin_smx_wr_iv">, SMXStoreIntrinsic;
+  // Output: (read data)
+  // Input: (stream ID)
+  def int_riscv_smx_rd_iv
+      : ClangBuiltin<"__builtin_smx_rd_iv">,
+        Intrinsic<[llvm_i32_ty],
+                  [llvm_i8_ty],
+                  [IntrWillReturn, IntrReadMem]>;
+
+  // Input: (write data, stream ID)
+  def int_riscv_smx_wr_iv
+      : ClangBuiltin<"__builtin_smx_wr_iv">,
+        Intrinsic<[],
+                  [llvm_i32_ty, llvm_i8_ty],
+                  [IntrWillReturn, IntrWriteMem]>;
 
   // Input: (stream ID, step)
   def int_riscv_smx_step
       : ClangBuiltin<"__builtin_smx_step">,
         Intrinsic<[],
-                  [llvm_i8_ty, llvm_i64_ty],
+                  [llvm_i8_ty, llvm_i32_ty],
                   [IntrWillReturn]>;
 
 } // TargetPrefix = "riscv"

@@ -19398,6 +19398,26 @@ Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
     IntrinsicTypes = {ResultType};
     break;
 
+  // Xsmx
+  case RISCV::BI__builtin_smx_ld_8:
+  case RISCV::BI__builtin_smx_ld_16:
+  case RISCV::BI__builtin_smx_ld_32:
+  case RISCV::BI__builtin_smx_ld_64:
+  case RISCV::BI__builtin_smx_fld_32:
+  case RISCV::BI__builtin_smx_fld_64:
+    ID = Intrinsic::riscv_smx_ld;
+    IntrinsicTypes = {ResultType};
+    break;
+  case RISCV::BI__builtin_smx_st_8:
+  case RISCV::BI__builtin_smx_st_16:
+  case RISCV::BI__builtin_smx_st_32:
+  case RISCV::BI__builtin_smx_st_64:
+  case RISCV::BI__builtin_smx_fst_32:
+  case RISCV::BI__builtin_smx_fst_64:
+    ID = Intrinsic::riscv_smx_st;
+    IntrinsicTypes = {Ops[0]->getType()};
+    break;
+
   // Vector builtins are handled from here.
 #include "clang/Basic/riscv_vector_builtin_cg.inc"
   }
