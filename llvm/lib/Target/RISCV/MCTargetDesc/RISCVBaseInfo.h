@@ -300,6 +300,37 @@ inline static bool isValidRoundingMode(unsigned Mode) {
 }
 } // namespace RISCVFPRndMode
 
+namespace RISCVSMXConfig {
+enum ReadWriteField {
+  W = 2,
+  R = 1,
+};
+
+enum Pattern {
+  Affine = 0,
+  Indirect = 1,
+  Invalid
+};
+
+inline static StringRef smxPatternToString(Pattern Pattern) {
+  switch (Pattern) {
+  default:
+    llvm_unreachable("Unknown SMX memory stream pattern");
+  case RISCVSMXConfig::Affine:
+    return "aff";
+  case RISCVSMXConfig::Indirect:
+    return "ind";
+  }
+}
+
+inline static Pattern stringToSMXPattern(StringRef Str) {
+  return StringSwitch<RoundingMode>(Str)
+      .Case("aff", RISCVSMXConfig::Affine)
+      .Case("ind", RISCVSMXConfig::Indirect)
+      .Default(RISCVSMXConfig::Invalid);
+}
+} // namespace RISCVSMXConfig
+
 namespace RISCVSysReg {
 struct SysReg {
   const char *Name;

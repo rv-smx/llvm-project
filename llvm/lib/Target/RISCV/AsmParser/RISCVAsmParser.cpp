@@ -506,6 +506,53 @@ public:
     return RISCVFPRndMode::stringToRoundingMode(Str) != RISCVFPRndMode::Invalid;
   }
 
+  /// Return true if the operand is a valid SMX read/write argument e.g.
+  /// (`rw`).
+  bool isSMXReadWriteArg() const {
+    if (!isImm())
+      return false;
+
+    int64_t Imm;
+    RISCVMCExpr::VariantKind VK = RISCVMCExpr::VK_RISCV_None;
+    if (evaluateConstantImm(getImm(), Imm, VK)) {
+      // Only accept 0 as a constant immediate.
+      return VK == RISCVMCExpr::VK_RISCV_None && Imm == 0;
+    }
+
+    auto *SVal = dyn_cast<MCSymbolRefExpr>(getImm());
+
+    if (!SVal || SVal->getKind() != MCSymbolRefExpr::VK_None)
+      return false;
+
+    StringRef Str = SVal->getSymbol().getName();
+    // Letters must be unique, taken from 'rw', and in ascending order. This
+    // holds as long as each individual character is one of 'rw' and is
+    // greater than the previous character.
+    char Prev = '\0';
+    for (char c : Str) {
+      if (c != 'r' && c != 'w')
+        return false;
+      if (c <= Prev)
+        return false;
+      Prev = c;
+    }
+    return true;
+  }
+
+  /// Return true if the operand is a valid SMX memory stream pattern.
+  bool isSMXPatternArg() const {
+    if (!isImm())
+      return false;
+    const MCExpr *Val = getImm();
+    auto *SVal = dyn_cast<MCSymbolRefExpr>(Val);
+    if (!SVal || SVal->getKind() != MCSymbolRefExpr::VK_None)
+      return false;
+
+    StringRef Str = SVal->getSymbol().getName();
+
+    return RISCVSMXConfig::stringToSMXPattern(Str) != RISCVSMXConfig::Invalid;
+  }
+
   bool isImmXLenLI() const {
     int64_t Imm;
     RISCVMCExpr::VariantKind VK = RISCVMCExpr::VK_RISCV_None;
@@ -984,6 +1031,51 @@ public:
   void addFRMArgOperands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
     Inst.addOperand(MCOperand::createImm(getRoundingMode()));
+  }
+
+  void addSMXReadWriteArgOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+
+    int64_t Constant = 0;
+    RISCVMCExpr::VariantKind VK = RISCVMCExpr::VK_RISCV_None;
+    if (evaluateConstantImm(getImm(), Constant, VK)) {
+      if (Constant == 0) {
+        Inst.addOperand(MCOperand::createImm(Constant));
+        return;
+      }
+      llvm_unreachable("SMXReadWriteArg must contain only [rw] or be 0");
+    }
+
+    // isSMXReadWriteArg has validated the operand, meaning this cast is safe
+    auto SE = cast<MCSymbolRefExpr>(getImm());
+
+    unsigned Imm = 0;
+    for (char c : SE->getSymbol().getName()) {
+      switch (c) {
+      default:
+        llvm_unreachable("SMXReadWriteArg must contain only [rw] or be 0");
+      case 'r':
+        Imm |= RISCVSMXConfig::R;
+        break;
+      case 'w':
+        Imm |= RISCVSMXConfig::W;
+        break;
+      }
+    }
+    Inst.addOperand(MCOperand::createImm(Imm));
+  }
+
+  void addSMXPatternArgOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+
+    // isSMXPatternArg has validated the operand, meaning this cast is safe.
+    auto SE = cast<MCSymbolRefExpr>(getImm());
+    RISCVSMXConfig::Pattern Pattern =
+        RISCVSMXConfig::stringToSMXPattern(SE->getSymbol().getName());
+    assert(Pattern != RISCVSMXConfig::Invalid &&
+           "Invalid SMX memory stream pattern");
+
+    Inst.addOperand(MCOperand::createImm(Pattern));
   }
 };
 } // end anonymous namespace.
