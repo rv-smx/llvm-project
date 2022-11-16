@@ -324,7 +324,7 @@ inline static StringRef smxPatternToString(Pattern Pattern) {
 }
 
 inline static Pattern stringToSMXPattern(StringRef Str) {
-  return StringSwitch<RoundingMode>(Str)
+  return StringSwitch<Pattern>(Str)
       .Case("aff", RISCVSMXConfig::Affine)
       .Case("ind", RISCVSMXConfig::Indirect)
       .Default(RISCVSMXConfig::Invalid);
