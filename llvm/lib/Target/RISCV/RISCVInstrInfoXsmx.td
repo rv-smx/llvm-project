@@ -195,7 +195,6 @@ let Predicates = [HasExtXsmx] in {
   // def : SMXLoadPat<SMX_LD, i8,  0b00>;
   // def : SMXLoadPat<SMX_LD, i16, 0b01>;
   def : SMXLoadPat<SMX_LW, i32>;
-  def : SMXLoadPat<SMX_LD, i64>;
 
   def : Pat<(int_riscv_smx_store uimm5_32:$rs1, uimm7_32:$selector, GPR:$rs2),
             (SMX_SW uimm5:$rs1, GPR:$rs2, uimm7:$selector)>;
@@ -221,14 +220,18 @@ let Predicates = [HasExtXsmx] in {
 
 } // Predicates = [HasExtXsmx]
 
+let Predicates = [HasExtXsmx, IsRV64] in {
+  def : SMXLoadPat<SMX_LD, i64>;
+} // Predicates = [HasExtXsmx, IsRV64]
+
 let Predicates = [HasExtXsmx, HasStdExtF] in {
-
   def : SMXLoadPat<SMX_FLW, f32>;
-  def : SMXLoadPat<SMX_FLD, f64>;
-
   def : Pat<(int_riscv_smx_store uimm5_32:$rs1, uimm7_32:$selector, FPR32:$rs2),
             (SMX_FSW uimm5:$rs1, FPR32:$rs2, uimm7:$selector)>;
+} // Predicates = [HasExtXsmx, HasStdExtF]
+
+let Predicates = [HasExtXsmx, HasStdExtD] in {
+  def : SMXLoadPat<SMX_FLD, f64>;
   def : Pat<(int_riscv_smx_store uimm5_32:$rs1, uimm7_32:$selector, FPR64:$rs2),
             (SMX_FSD uimm5:$rs1, FPR64:$rs2, uimm7:$selector)>;
-
 } // Predicates = [HasExtXsmx, HasStdExtF]
