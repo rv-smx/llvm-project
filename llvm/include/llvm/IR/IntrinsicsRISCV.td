@@ -1646,10 +1646,10 @@ let TargetPrefix = "riscv" in {
                   [llvm_i32_ty, llvm_i32_ty],
                   [IntrWillReturn, IntrReadMem]>;
 
-  // Input: (write data, stream ID)
+  // Input: (write data, stream ID, data selector)
   def int_riscv_smx_st
       : Intrinsic<[],
-                  [llvm_any_ty, llvm_i32_ty],
+                  [llvm_any_ty, llvm_i32_ty, llvm_i32_ty],
                   [IntrWillReturn, IntrWriteMem]>;
 
   // Output: (read data)
