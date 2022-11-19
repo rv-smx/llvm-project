@@ -19399,23 +19399,23 @@ Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
     break;
 
   // Xsmx
-  case RISCV::BI__builtin_smx_ld_8:
-  case RISCV::BI__builtin_smx_ld_16:
-  case RISCV::BI__builtin_smx_ld_32:
-  case RISCV::BI__builtin_smx_ld_64:
-  case RISCV::BI__builtin_smx_fld_32:
-  case RISCV::BI__builtin_smx_fld_64:
-    ID = Intrinsic::riscv_smx_ld;
+  case RISCV::BI__builtin_riscv_smx_load_8:
+  case RISCV::BI__builtin_riscv_smx_load_16:
+  case RISCV::BI__builtin_riscv_smx_load_32:
+  case RISCV::BI__builtin_riscv_smx_load_64:
+  case RISCV::BI__builtin_riscv_smx_fload_32:
+  case RISCV::BI__builtin_riscv_smx_fload_64:
+    ID = Intrinsic::riscv_smx_load;
     IntrinsicTypes = {ResultType};
     break;
-  case RISCV::BI__builtin_smx_st_8:
-  case RISCV::BI__builtin_smx_st_16:
-  case RISCV::BI__builtin_smx_st_32:
-  case RISCV::BI__builtin_smx_st_64:
-  case RISCV::BI__builtin_smx_fst_32:
-  case RISCV::BI__builtin_smx_fst_64:
-    ID = Intrinsic::riscv_smx_st;
-    IntrinsicTypes = {Ops[0]->getType()};
+  case RISCV::BI__builtin_riscv_smx_store_8:
+  case RISCV::BI__builtin_riscv_smx_store_16:
+  case RISCV::BI__builtin_riscv_smx_store_32:
+  case RISCV::BI__builtin_riscv_smx_store_64:
+  case RISCV::BI__builtin_riscv_smx_fstore_32:
+  case RISCV::BI__builtin_riscv_smx_fstore_64:
+    ID = Intrinsic::riscv_smx_store;
+    IntrinsicTypes = {Ops[2]->getType()};
     break;
 
   // Vector builtins are handled from here.

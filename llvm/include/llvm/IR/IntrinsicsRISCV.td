@@ -1618,58 +1618,58 @@ let TargetPrefix = "riscv" in {
 
   // Input: (iteration number)
   def int_riscv_smx_cfg_iv
-      : ClangBuiltin<"__builtin_smx_cfg_iv">,
+      : ClangBuiltin<"__builtin_riscv_smx_cfg_iv">,
         Intrinsic<[],
                   [llvm_i32_ty],
                   [IntrWillReturn, IntrNoMem, IntrHasSideEffects]>;
 
   // Input: (start address, stride, dependent stream, read, write, pattern, log2(width))
   def int_riscv_smx_cfg_ms
-      : ClangBuiltin<"__builtin_smx_cfg_ms">,
+      : ClangBuiltin<"__builtin_riscv_smx_cfg_ms">,
         Intrinsic<[],
                   [llvm_ptr_ty, llvm_i32_ty, llvm_i32_ty,
                    llvm_i32_ty, llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
                   [IntrWillReturn, IntrNoMem, IntrHasSideEffects]>;
 
   def int_riscv_smx_ready
-      : ClangBuiltin<"__builtin_smx_ready">,
+      : ClangBuiltin<"__builtin_riscv_smx_ready">,
         Intrinsic<[], [], [IntrWillReturn, IntrNoMem, IntrHasSideEffects]>;
 
   def int_riscv_smx_end
-      : ClangBuiltin<"__builtin_smx_end">,
+      : ClangBuiltin<"__builtin_riscv_smx_end">,
         Intrinsic<[], [], [IntrWillReturn, IntrNoMem, IntrHasSideEffects]>;
 
   // Output: (read data)
   // Input: (stream ID, data selector)
-  def int_riscv_smx_ld
+  def int_riscv_smx_load
       : Intrinsic<[llvm_any_ty],
                   [llvm_i32_ty, llvm_i32_ty],
                   [IntrWillReturn, IntrReadMem]>;
 
-  // Input: (write data, stream ID, data selector)
-  def int_riscv_smx_st
+  // Input: (stream ID, data selector, write data)
+  def int_riscv_smx_store
       : Intrinsic<[],
-                  [llvm_any_ty, llvm_i32_ty, llvm_i32_ty],
+                  [llvm_i32_ty, llvm_i32_ty, llvm_any_ty],
                   [IntrWillReturn, IntrWriteMem]>;
 
   // Output: (read data)
   // Input: (stream ID)
-  def int_riscv_smx_rd_iv
-      : ClangBuiltin<"__builtin_smx_rd_iv">,
+  def int_riscv_smx_read_iv
+      : ClangBuiltin<"__builtin_riscv_smx_read_iv">,
         Intrinsic<[llvm_i32_ty],
                   [llvm_i32_ty],
                   [IntrWillReturn, IntrReadMem]>;
 
-  // Input: (write data, stream ID)
-  def int_riscv_smx_wr_iv
-      : ClangBuiltin<"__builtin_smx_wr_iv">,
+  // Input: (stream ID, write data)
+  def int_riscv_smx_write_iv
+      : ClangBuiltin<"__builtin_riscv_smx_write_iv">,
         Intrinsic<[],
                   [llvm_i32_ty, llvm_i32_ty],
                   [IntrWillReturn, IntrWriteMem]>;
 
   // Input: (stream ID, step)
   def int_riscv_smx_step
-      : ClangBuiltin<"__builtin_smx_step">,
+      : ClangBuiltin<"__builtin_riscv_smx_step">,
         Intrinsic<[],
                   [llvm_i32_ty, llvm_i32_ty],
                   [IntrWillReturn, IntrNoMem, IntrHasSideEffects]>;
