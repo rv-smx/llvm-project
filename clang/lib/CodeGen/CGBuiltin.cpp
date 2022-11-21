@@ -19399,21 +19399,25 @@ Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
     break;
 
   // Xsmx
-  case RISCV::BI__builtin_riscv_smx_load_8:
-  case RISCV::BI__builtin_riscv_smx_load_16:
-  case RISCV::BI__builtin_riscv_smx_load_32:
-  case RISCV::BI__builtin_riscv_smx_load_64:
-  case RISCV::BI__builtin_riscv_smx_fload_32:
-  case RISCV::BI__builtin_riscv_smx_fload_64:
+  case RISCV::BI__builtin_riscv_smx_load_i8:
+  case RISCV::BI__builtin_riscv_smx_load_i16:
+  case RISCV::BI__builtin_riscv_smx_load_i32:
+  case RISCV::BI__builtin_riscv_smx_load_i64:
+  case RISCV::BI__builtin_riscv_smx_load_u8:
+  case RISCV::BI__builtin_riscv_smx_load_u16:
+  case RISCV::BI__builtin_riscv_smx_load_u32:
+  case RISCV::BI__builtin_riscv_smx_load_u64:
+  case RISCV::BI__builtin_riscv_smx_load_f32:
+  case RISCV::BI__builtin_riscv_smx_load_f64:
     ID = Intrinsic::riscv_smx_load;
     IntrinsicTypes = {ResultType};
     break;
-  case RISCV::BI__builtin_riscv_smx_store_8:
-  case RISCV::BI__builtin_riscv_smx_store_16:
-  case RISCV::BI__builtin_riscv_smx_store_32:
-  case RISCV::BI__builtin_riscv_smx_store_64:
-  case RISCV::BI__builtin_riscv_smx_fstore_32:
-  case RISCV::BI__builtin_riscv_smx_fstore_64:
+  case RISCV::BI__builtin_riscv_smx_store_i8:
+  case RISCV::BI__builtin_riscv_smx_store_i16:
+  case RISCV::BI__builtin_riscv_smx_store_i32:
+  case RISCV::BI__builtin_riscv_smx_store_i64:
+  case RISCV::BI__builtin_riscv_smx_store_f32:
+  case RISCV::BI__builtin_riscv_smx_store_f64:
     ID = Intrinsic::riscv_smx_store;
     IntrinsicTypes = {Ops[2]->getType()};
     break;
