@@ -21,7 +21,7 @@ def SMXReadWriteArg : AsmOperandClass {
   let DiagnosticType = "InvalidSMXReadWriteArg";
 }
 
-def smx_rw_arg : Operand<XLenVT> {
+def smx_rw_arg : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isUInt<2>(Imm);}]> {
   let ParserMatchClass = SMXReadWriteArg;
   let PrintMethod = "printSMXReadWriteArg";
   let DecoderMethod = "decodeUImmOperand<2>";
@@ -35,7 +35,7 @@ def SMXPatternArg : AsmOperandClass {
   let DiagnosticType = "InvalidSMXPatternArg";
 }
 
-def smx_pat_arg : Operand<XLenVT> {
+def smx_pat_arg : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isUInt<2>(Imm);}]> {
   let ParserMatchClass = SMXPatternArg;
   let PrintMethod = "printSMXPatternArg";
   let DecoderMethod = "decodeUImmOperand<2>";
@@ -43,11 +43,28 @@ def smx_pat_arg : Operand<XLenVT> {
   let OperandNamespace = "RISCVOp";
 }
 
-def uimm2_32 : ImmLeaf<i32, [{return isUInt<2>(Imm);}]>;
-def uimm3_32 : ImmLeaf<i32, [{return isUInt<3>(Imm);}]>;
-def uimm5_32 : ImmLeaf<i32, [{return isUInt<5>(Imm);}]>;
-def uimm7_32 : ImmLeaf<i32, [{return isUInt<7>(Imm);}]>;
-def uimm32_32 : ImmLeaf<i32, [{return isUInt<32>(Imm);}]>;
+def smx_width_arg : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isUInt<3>(Imm);}]> {
+  let ParserMatchClass = UImmAsmOperand<3>;
+  let DecoderMethod = "decodeUImmOperand<3>";
+  let OperandType = "OPERAND_UIMM3";
+  let OperandNamespace = "RISCVOp";
+}
+
+def smx_stream_arg : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isUInt<5>(Imm);}]> {
+  let ParserMatchClass = UImmAsmOperand<5>;
+  let DecoderMethod = "decodeUImmOperand<5>";
+  let OperandType = "OPERAND_UIMM5";
+  let OperandNamespace = "RISCVOp";
+}
+
+def smx_selector_arg : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isUInt<7>(Imm);}]> {
+  let ParserMatchClass = UImmAsmOperand<7>;
+  let DecoderMethod = "decodeUImmOperand<7>";
+  let OperandType = "OPERAND_UIMM7";
+  let OperandNamespace = "RISCVOp";
+}
+
+def uimm_xlen : ImmLeaf<XLenVT, [{}]>;
 
 //===----------------------------------------------------------------------===//
 // Instruction class templates
@@ -63,8 +80,8 @@ let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in {
 
   class SMXInstCfgMS<bits<3> funct3, string opcodestr>
       : RVInstS<funct3, OPC_CUSTOM_0, (outs),
-                (ins GPR:$rs1, GPR:$rs2, uimm5:$dependent,
-                 smx_rw_arg:$rw, smx_pat_arg:$pattern, uimm3:$width),
+                (ins GPR:$rs1, GPR:$rs2, smx_stream_arg:$dependent,
+                     smx_rw_arg:$rw, smx_pat_arg:$pattern, smx_width_arg:$width),
                 opcodestr, "$rs1, $rs2, $dependent, $rw, $pattern, $width"> {
     bits<5> dependent;
     bits<2> rw;
@@ -82,7 +99,8 @@ let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in {
   }
 
   class SMXInstStep<bits<3> funct3, string opcodestr>
-      : RVInstS<funct3, OPC_CUSTOM_0, (outs), (ins uimm5:$rs1, GPR:$rs2, simm12:$imm12),
+      : RVInstS<funct3, OPC_CUSTOM_0, (outs),
+                (ins smx_stream_arg:$rs1, GPR:$rs2, simm12:$imm12),
                 opcodestr, "$rs1, $rs2, $imm12">;
 
 } // hasSideEffects = 1, mayLoad = 0, mayStore = 0
@@ -92,7 +110,7 @@ let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in {
   class SMXInstLoad<RegisterClass rd, bits<2> width, bit unsigned,
                     bits<3> funct3, string opcodestr>
       : RVInstI<funct3, OPC_CUSTOM_1,
-                (outs rd:$rd), (ins uimm5:$rs1, uimm7:$selector),
+                (outs rd:$rd), (ins smx_stream_arg:$rs1, smx_selector_arg:$selector),
                 opcodestr, "$rd, $rs1, $selector"> {
     bits<7> selector;
 
@@ -101,7 +119,7 @@ let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in {
 
   class SMXInstRead<bits<3> funct3, string opcodestr>
       : RVInstI<funct3, OPC_CUSTOM_1,
-                (outs GPR:$rd), (ins uimm5:$rs1, simm12:$imm12),
+                (outs GPR:$rd), (ins smx_stream_arg:$rs1, simm12:$imm12),
                 opcodestr, "$rd, $rs1, $imm12">;
 
 } // hasSideEffects = 0, mayLoad = 1, mayStore = 0
@@ -110,8 +128,8 @@ let hasSideEffects = 0, mayLoad = 0, mayStore = 1 in {
 
   class SMXInstStore<RegisterClass rs2, bits<2> width,
                      bits<3> funct3, string opcodestr>
-      : RVInstS<funct3, OPC_CUSTOM_1,
-                (outs), (ins uimm5:$rs1, rs2:$rs2, uimm7:$selector),
+      : RVInstS<funct3, OPC_CUSTOM_1, (outs),
+                (ins smx_stream_arg:$rs1, rs2:$rs2, smx_selector_arg:$selector),
                 opcodestr, "$rs1, $rs2, $selector"> {
     bits<7> selector;
 
@@ -120,7 +138,7 @@ let hasSideEffects = 0, mayLoad = 0, mayStore = 1 in {
 
   class SMXInstWrite<bits<3> funct3, string opcodestr>
       : RVInstS<funct3, OPC_CUSTOM_1,
-                (outs), (ins uimm5:$rs1, GPR:$rs2, simm12:$imm12),
+                (outs), (ins smx_stream_arg:$rs1, GPR:$rs2, simm12:$imm12),
                 opcodestr, "$rs1, $rs2, $imm12">;
 
 } // hasSideEffects = 0, mayLoad = 0, mayStore = 1
@@ -162,8 +180,8 @@ let Predicates = [HasExtXsmx, HasStdExtF] in {
 //===----------------------------------------------------------------------===//
 
 class SMXLoadPat<SMXInstLoad load, ValueType vt>
-    : Pat<(vt (int_riscv_smx_load uimm5_32:$rs1, uimm7_32:$selector)),
-          (load uimm5:$rs1, uimm7:$selector)>;
+    : Pat<(vt (int_riscv_smx_load smx_stream_arg:$rs1, smx_selector_arg:$selector)),
+          (load smx_stream_arg:$rs1, smx_selector_arg:$selector)>;
 
 let Predicates = [HasExtXsmx] in {
 
@@ -172,22 +190,23 @@ let Predicates = [HasExtXsmx] in {
   def : Pat<(int_riscv_smx_cfg_iv (add GPR:$rs2, simm12:$imm12)),
             (SMX_CFG_IV GPR:$rs2, simm12:$imm12)>;
 
-  def : Pat<(int_riscv_smx_cfg_ms GPR:$rs1, GPR:$rs2, uimm5_32:$dependent,
-                                  0, 0, uimm2_32:$pattern, uimm3_32:$width),
-            (SMX_CFG_MS GPR:$rs1, GPR:$rs2, uimm5:$dependent,
-                        0b00, smx_pat_arg:$pattern, uimm3:$width)>;
-  def : Pat<(int_riscv_smx_cfg_ms GPR:$rs1, GPR:$rs2, uimm5_32:$dependent,
-                                  uimm32_32, 0, uimm2_32:$pattern, uimm3_32:$width),
-            (SMX_CFG_MS GPR:$rs1, GPR:$rs2, uimm5:$dependent,
-                        0b01, smx_pat_arg:$pattern, uimm3:$width)>;
-  def : Pat<(int_riscv_smx_cfg_ms GPR:$rs1, GPR:$rs2, uimm5_32:$dependent,
-                                  0, uimm32_32, uimm2_32:$pattern, uimm3_32:$width),
-            (SMX_CFG_MS GPR:$rs1, GPR:$rs2, uimm5:$dependent,
-                        0b10, smx_pat_arg:$pattern, uimm3:$width)>;
-  def : Pat<(int_riscv_smx_cfg_ms GPR:$rs1, GPR:$rs2, uimm5_32:$dependent,
-                                  uimm32_32, uimm32_32, uimm2_32:$pattern, uimm3_32:$width),
-            (SMX_CFG_MS GPR:$rs1, GPR:$rs2, uimm5:$dependent,
-                        0b11, smx_pat_arg:$pattern, uimm3:$width)>;
+  def : Pat<(int_riscv_smx_cfg_ms GPR:$rs1, GPR:$rs2, smx_stream_arg:$dependent,
+                                  0, 0, smx_pat_arg:$pattern, smx_width_arg:$width),
+            (SMX_CFG_MS GPR:$rs1, GPR:$rs2, smx_stream_arg:$dependent,
+                        0b00, smx_pat_arg:$pattern, smx_width_arg:$width)>;
+  def : Pat<(int_riscv_smx_cfg_ms GPR:$rs1, GPR:$rs2, smx_stream_arg:$dependent,
+                                  uimm_xlen, 0, smx_pat_arg:$pattern, smx_width_arg:$width),
+            (SMX_CFG_MS GPR:$rs1, GPR:$rs2, smx_stream_arg:$dependent,
+                        0b01, smx_pat_arg:$pattern, smx_width_arg:$width)>;
+  def : Pat<(int_riscv_smx_cfg_ms GPR:$rs1, GPR:$rs2, smx_stream_arg:$dependent,
+                                  0, uimm_xlen, smx_pat_arg:$pattern, smx_width_arg:$width),
+            (SMX_CFG_MS GPR:$rs1, GPR:$rs2, smx_stream_arg:$dependent,
+                        0b10, smx_pat_arg:$pattern, smx_width_arg:$width)>;
+  def : Pat<(int_riscv_smx_cfg_ms GPR:$rs1, GPR:$rs2, smx_stream_arg:$dependent,
+                                  uimm_xlen, uimm_xlen,
+                                  smx_pat_arg:$pattern, smx_width_arg:$width),
+            (SMX_CFG_MS GPR:$rs1, GPR:$rs2, smx_stream_arg:$dependent,
+                        0b11, smx_pat_arg:$pattern, smx_width_arg:$width)>;
 
   def : Pat<(int_riscv_smx_ready), (SMX_READY)>;
   def : Pat<(int_riscv_smx_end), (SMX_END)>;
@@ -196,27 +215,27 @@ let Predicates = [HasExtXsmx] in {
   // def : SMXLoadPat<SMX_LD, i16, 0b01>;
   def : SMXLoadPat<SMX_LW, i32>;
 
-  def : Pat<(int_riscv_smx_store uimm5_32:$rs1, uimm7_32:$selector, GPR:$rs2),
-            (SMX_SW uimm5:$rs1, GPR:$rs2, uimm7:$selector)>;
+  def : Pat<(int_riscv_smx_store smx_stream_arg:$rs1, smx_selector_arg:$selector, GPR:$rs2),
+            (SMX_SW smx_stream_arg:$rs1, GPR:$rs2, smx_selector_arg:$selector)>;
 
-  def : Pat<(int_riscv_smx_read_iv uimm5_32:$rs1),
-            (SMX_RD_IV uimm5:$rs1, 0)>;
-  def : Pat<(add (int_riscv_smx_read_iv uimm5_32:$rs1), simm12:$imm12),
-            (SMX_RD_IV uimm5:$rs1, simm12:$imm12)>;
+  def : Pat<(int_riscv_smx_read_iv smx_stream_arg:$rs1),
+            (SMX_RD_IV smx_stream_arg:$rs1, 0)>;
+  def : Pat<(add (int_riscv_smx_read_iv smx_stream_arg:$rs1), simm12:$imm12),
+            (SMX_RD_IV smx_stream_arg:$rs1, simm12:$imm12)>;
 
-  def : Pat<(int_riscv_smx_write_iv uimm5_32:$rs1, GPR:$rs2),
-            (SMX_WR_IV uimm5:$rs1, GPR:$rs2, 0)>;
-  def : Pat<(int_riscv_smx_write_iv uimm5_32:$rs1, simm12:$imm12),
-            (SMX_WR_IV uimm5:$rs1, X0, simm12:$imm12)>;
-  def : Pat<(int_riscv_smx_write_iv uimm5_32:$rs1, (add GPR:$rs2, simm12:$imm12)),
-            (SMX_WR_IV uimm5:$rs1, GPR:$rs2, simm12:$imm12)>;
+  def : Pat<(int_riscv_smx_write_iv smx_stream_arg:$rs1, GPR:$rs2),
+            (SMX_WR_IV smx_stream_arg:$rs1, GPR:$rs2, 0)>;
+  def : Pat<(int_riscv_smx_write_iv smx_stream_arg:$rs1, simm12:$imm12),
+            (SMX_WR_IV smx_stream_arg:$rs1, X0, simm12:$imm12)>;
+  def : Pat<(int_riscv_smx_write_iv smx_stream_arg:$rs1, (add GPR:$rs2, simm12:$imm12)),
+            (SMX_WR_IV smx_stream_arg:$rs1, GPR:$rs2, simm12:$imm12)>;
 
-  def : Pat<(int_riscv_smx_step uimm5_32:$rs1, GPR:$rs2),
-            (SMX_STEP uimm5:$rs1, GPR:$rs2, 0)>;
-  def : Pat<(int_riscv_smx_step uimm5_32:$rs1, simm12:$imm12),
-            (SMX_STEP uimm5:$rs1, X0, simm12:$imm12)>;
-  def : Pat<(int_riscv_smx_step uimm5_32:$rs1, (add GPR:$rs2, simm12:$imm12)),
-            (SMX_STEP uimm5:$rs1, GPR:$rs2, simm12:$imm12)>;
+  def : Pat<(int_riscv_smx_step smx_stream_arg:$rs1, GPR:$rs2),
+            (SMX_STEP smx_stream_arg:$rs1, GPR:$rs2, 0)>;
+  def : Pat<(int_riscv_smx_step smx_stream_arg:$rs1, simm12:$imm12),
+            (SMX_STEP smx_stream_arg:$rs1, X0, simm12:$imm12)>;
+  def : Pat<(int_riscv_smx_step smx_stream_arg:$rs1, (add GPR:$rs2, simm12:$imm12)),
+            (SMX_STEP smx_stream_arg:$rs1, GPR:$rs2, simm12:$imm12)>;
 
 } // Predicates = [HasExtXsmx]
 
@@ -226,12 +245,12 @@ let Predicates = [HasExtXsmx, IsRV64] in {
 
 let Predicates = [HasExtXsmx, HasStdExtF] in {
   def : SMXLoadPat<SMX_FLW, f32>;
-  def : Pat<(int_riscv_smx_store uimm5_32:$rs1, uimm7_32:$selector, FPR32:$rs2),
-            (SMX_FSW uimm5:$rs1, FPR32:$rs2, uimm7:$selector)>;
+  def : Pat<(int_riscv_smx_store smx_stream_arg:$rs1, smx_selector_arg:$selector, FPR32:$rs2),
+            (SMX_FSW smx_stream_arg:$rs1, FPR32:$rs2, smx_selector_arg:$selector)>;
 } // Predicates = [HasExtXsmx, HasStdExtF]
 
 let Predicates = [HasExtXsmx, HasStdExtD] in {
   def : SMXLoadPat<SMX_FLD, f64>;
-  def : Pat<(int_riscv_smx_store uimm5_32:$rs1, uimm7_32:$selector, FPR64:$rs2),
-            (SMX_FSD uimm5:$rs1, FPR64:$rs2, uimm7:$selector)>;
+  def : Pat<(int_riscv_smx_store smx_stream_arg:$rs1, smx_selector_arg:$selector, FPR64:$rs2),
+            (SMX_FSD smx_stream_arg:$rs1, FPR64:$rs2, smx_selector_arg:$selector)>;
 } // Predicates = [HasExtXsmx, HasStdExtF]
