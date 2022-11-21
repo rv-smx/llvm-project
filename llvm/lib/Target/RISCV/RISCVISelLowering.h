@@ -324,6 +324,21 @@ enum NodeType : unsigned {
   // the value read before the modification and the new chain pointer.
   SWAP_CSR,
 
+  // SMX extend load operations.
+  SMX_EXT_LOAD_I8,
+  SMX_SEXT_LOAD_I8,
+  SMX_ZEXT_LOAD_I8,
+  SMX_EXT_LOAD_I16,
+  SMX_SEXT_LOAD_I16,
+  SMX_ZEXT_LOAD_I16,
+  SMX_EXT_LOAD_I32,
+  SMX_SEXT_LOAD_I32,
+  SMX_ZEXT_LOAD_I32,
+  // SMX truncate store operations.
+  SMX_TRUNC_STORE_I8,
+  SMX_TRUNC_STORE_I16,
+  SMX_TRUNC_STORE_I32,
+
   // FP to 32 bit int conversions for RV64. These are used to keep track of the
   // result being sign extended to 64 bit. These saturate out of range inputs.
   STRICT_FCVT_W_RV64 = ISD::FIRST_TARGET_STRICTFP_OPCODE,
