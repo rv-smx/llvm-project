@@ -928,6 +928,15 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
     }
   }
 
+  if (Subtarget.hasExtXsmx()) {
+    setOperationAction({ISD::INTRINSIC_W_CHAIN, ISD::INTRINSIC_VOID},
+                       {MVT::i8, MVT::i16}, Custom);
+    if (Subtarget.is64Bit()) {
+      setOperationAction({ISD::INTRINSIC_W_CHAIN, ISD::INTRINSIC_VOID},
+                         MVT::i32, Custom);
+    }
+  }
+
   // Function alignments.
   const Align FunctionAlignment(Subtarget.hasStdExtC() ? 2 : 4);
   setMinFunctionAlignment(FunctionAlignment);
@@ -5098,6 +5107,28 @@ SDValue RISCVTargetLowering::LowerINTRINSIC_VOID(SDValue Op,
                                    Ops, Store->getMemoryVT(),
                                    Store->getMemOperand());
   }
+  case Intrinsic::riscv_smx_store: {
+    SDLoc DL(Op);
+    SDValue Val = Op.getOperand(4);
+    EVT VT = Val.getValueType();
+    MVT XLenVT = Subtarget.getXLenVT();
+    if (VT.bitsEq(XLenVT)) break;
+
+    unsigned Opc;
+    if (VT == MVT::i8) {
+      Opc = RISCVISD::SMX_TRUNC_STORE_I8;
+    } else if (VT == MVT::i16) {
+      Opc = RISCVISD::SMX_TRUNC_STORE_I16;
+    } else {
+      assert(VT == MVT::i32 && Subtarget.is64Bit() &&
+             "Unexpected custom legalisation");
+      Opc = RISCVISD::SMX_TRUNC_STORE_I32;
+    }
+
+    return DAG.getNode(Opc, DL, XLenVT, Op.getOperand(0), Op.getOperand(2),
+                       Op.getOperand(3),
+                       DAG.getNode(ISD::ANY_EXTEND, DL, XLenVT, Val));
+  }
   }
 
   return SDValue();
@@ -7370,6 +7401,37 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
 
       Results.push_back(
           DAG.getNode(ISD::BUILD_PAIR, DL, MVT::i64, EltLo, EltHi));
+      break;
+    }
+    }
+    break;
+  }
+  case ISD::INTRINSIC_W_CHAIN: {
+    unsigned IntNo = N->getConstantOperandVal(1);
+    switch (IntNo) {
+    default:
+      llvm_unreachable(
+          "Don't know how to custom type legalize this intrinsic!");
+    case Intrinsic::riscv_smx_load: {
+      EVT VT = N->getValueType(0);
+      MVT XLenVT = Subtarget.getXLenVT();
+      if (VT.bitsEq(XLenVT)) return;
+
+      unsigned Opc;
+      if (VT == MVT::i8) {
+        Opc = RISCVISD::SMX_EXT_LOAD_I8;
+      } else if (VT == MVT::i16) {
+        Opc = RISCVISD::SMX_EXT_LOAD_I16;
+      } else {
+        assert(VT == MVT::i32 && Subtarget.is64Bit() &&
+               "Unexpected custom legalisation");
+        Opc = RISCVISD::SMX_EXT_LOAD_I32;
+      }
+
+      SDValue Chain = N->getOperand(0);
+      Results.push_back(DAG.getNode(Opc, DL, XLenVT, Chain, N->getOperand(2),
+                                    N->getOperand(3)));
+      Results.push_back(Chain);
       break;
     }
     }

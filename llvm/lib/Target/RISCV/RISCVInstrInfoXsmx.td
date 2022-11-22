@@ -24,11 +24,15 @@ def SDT_RISCVSMXTruncStore : SDTypeProfile<0, 3, [SDTCisVT<0, XLenVT>,
                                                   SDTCisVT<2, XLenVT>]>;
 
 foreach l = [8, 16, 32] in {
-  def smx_ext_load_i # l : SDNode<"RISCVISD::SMX_EXT_LOAD_I" # l, SDT_RISCVSMXExtLoad>;
-  def smx_sext_load_i # l : SDNode<"RISCVISD::SMX_SEXT_LOAD_I" # l, SDT_RISCVSMXExtLoad>;
-  def smx_zext_load_i # l : SDNode<"RISCVISD::SMX_ZEXT_LOAD_I" # l, SDT_RISCVSMXExtLoad>;
+  def smx_ext_load_i # l : SDNode<"RISCVISD::SMX_EXT_LOAD_I" # l, SDT_RISCVSMXExtLoad,
+                                  [SDNPHasChain, SDNPMayLoad]>;
+  def smx_sext_load_i # l : SDNode<"RISCVISD::SMX_SEXT_LOAD_I" # l, SDT_RISCVSMXExtLoad,
+                                   [SDNPHasChain, SDNPMayLoad]>;
+  def smx_zext_load_i # l : SDNode<"RISCVISD::SMX_ZEXT_LOAD_I" # l, SDT_RISCVSMXExtLoad,
+                                   [SDNPHasChain, SDNPMayLoad]>;
   def smx_trunc_store_i # l
-      : SDNode<"RISCVISD::SMX_TRUNC_STORE_I" # l, SDT_RISCVSMXTruncStore>;
+      : SDNode<"RISCVISD::SMX_TRUNC_STORE_I" # l, SDT_RISCVSMXTruncStore,
+               [SDNPHasChain, SDNPMayStore]>;
 }
 
 //===----------------------------------------------------------------------===//
