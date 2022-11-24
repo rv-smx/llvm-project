@@ -23,16 +23,29 @@ def SDT_RISCVSMXTruncStore : SDTypeProfile<0, 3, [SDTCisVT<0, XLenVT>,
                                                   SDTCisVT<1, XLenVT>,
                                                   SDTCisVT<2, XLenVT>]>;
 
+multiclass RISCVSMXExtLoad<string ext, int len> {
+  defvar node_name = "smx_" # NAME # "_load_i" # len;
+  def node_name : SDNode<"RISCVISD::SMX_" # ext # "_LOAD_I" # len,
+                         SDT_RISCVSMXExtLoad, [SDNPHasChain, SDNPMayLoad]>;
+  def smx_ # NAME # loadi # len
+      : PatFrag<(ops node:$stream, node:$sel),
+                (!cast<SDNode>(node_name) node:$stream, node:$sel)>;
+}
+
+multiclass RISCVSMXTruncStore<int len> {
+  defvar node_name = "smx_trunc_store_i" # len;
+  def node_name : SDNode<"RISCVISD::SMX_TRUNC_STORE_I" # len,
+                         SDT_RISCVSMXTruncStore, [SDNPHasChain, SDNPMayStore]>;
+  def smx_truncstorei # len
+      : PatFrag<(ops node:$stream, node:$sel, node:$val),
+                (!cast<SDNode>(node_name) node:$stream, node:$sel, node:$val)>;
+}
+
 foreach l = [8, 16, 32] in {
-  def smx_ext_load_i # l : SDNode<"RISCVISD::SMX_EXT_LOAD_I" # l, SDT_RISCVSMXExtLoad,
-                                  [SDNPHasChain, SDNPMayLoad]>;
-  def smx_sext_load_i # l : SDNode<"RISCVISD::SMX_SEXT_LOAD_I" # l, SDT_RISCVSMXExtLoad,
-                                   [SDNPHasChain, SDNPMayLoad]>;
-  def smx_zext_load_i # l : SDNode<"RISCVISD::SMX_ZEXT_LOAD_I" # l, SDT_RISCVSMXExtLoad,
-                                   [SDNPHasChain, SDNPMayLoad]>;
-  def smx_trunc_store_i # l
-      : SDNode<"RISCVISD::SMX_TRUNC_STORE_I" # l, SDT_RISCVSMXTruncStore,
-               [SDNPHasChain, SDNPMayStore]>;
+  defm ext : RISCVSMXExtLoad<"EXT", l>;
+  defm sext : RISCVSMXExtLoad<"SEXT", l>;
+  defm zext : RISCVSMXExtLoad<"ZEXT", l>;
+  defm "" : RISCVSMXTruncStore<l>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -182,37 +195,57 @@ let Predicates = [HasExtXsmx] in {
   def SMX_LH     : SMXInstLoad  <GPR, 0b01, 0, 0b000, "smx.lh">, Sched<[]>;
   def SMX_LHU    : SMXInstLoad  <GPR, 0b01, 1, 0b000, "smx.lhu">, Sched<[]>;
   def SMX_LW     : SMXInstLoad  <GPR, 0b10, 0, 0b000, "smx.lw">, Sched<[]>;
-  def SMX_LWU    : SMXInstLoad  <GPR, 0b10, 1, 0b000, "smx.lwu">, Sched<[]>;
-  def SMX_LD     : SMXInstLoad  <GPR, 0b11, 0, 0b000, "smx.ld">, Sched<[]>;
   def SMX_SB     : SMXInstStore <GPR, 0b00,    0b001, "smx.sb">, Sched<[]>;
   def SMX_SH     : SMXInstStore <GPR, 0b01,    0b001, "smx.sh">, Sched<[]>;
   def SMX_SW     : SMXInstStore <GPR, 0b10,    0b001, "smx.sw">, Sched<[]>;
-  def SMX_SD     : SMXInstStore <GPR, 0b11,    0b001, "smx.sd">, Sched<[]>;
   def SMX_RD_IV  : SMXInstRead  <              0b010, "smx.rd.iv">, Sched<[]>;
   def SMX_WR_IV  : SMXInstWrite <              0b011, "smx.wr.iv">, Sched<[]>;
 } // Predicates = [HasExtXsmx]
 
+let Predicates = [HasExtXsmx, IsRV64] in {
+  def SMX_LWU    : SMXInstLoad  <GPR, 0b10, 1, 0b000, "smx.lwu">, Sched<[]>;
+  def SMX_LD     : SMXInstLoad  <GPR, 0b11, 0, 0b000, "smx.ld">, Sched<[]>;
+  def SMX_SD     : SMXInstStore <GPR, 0b11,    0b001, "smx.sd">, Sched<[]>;
+} // Predicates = [HasExtXsmx, IsRV64]
+
 let Predicates = [HasExtXsmx, HasStdExtF] in {
   def SMX_FLW : SMXInstLoad  <FPR32, 0b10, 0, 0b100, "smx.flw">, Sched<[]>;
-  def SMX_FLD : SMXInstLoad  <FPR64, 0b11, 0, 0b100, "smx.fld">, Sched<[]>;
   def SMX_FSW : SMXInstStore <FPR32, 0b10,    0b101, "smx.fsw">, Sched<[]>;
-  def SMX_FSD : SMXInstStore <FPR64, 0b11,    0b101, "smx.fsd">, Sched<[]>;
 } // Predicates = [HasExtXsmx, HasStdExtF]
+
+let Predicates = [HasExtXsmx, HasStdExtD] in {
+  def SMX_FLD : SMXInstLoad  <FPR64, 0b11, 0, 0b100, "smx.fld">, Sched<[]>;
+  def SMX_FSD : SMXInstStore <FPR64, 0b11,    0b101, "smx.fsd">, Sched<[]>;
+} // Predicates = [HasExtXsmx, HasStdExtD]
 
 //===----------------------------------------------------------------------===//
 // Pseudo-instructions and codegen patterns
 //===----------------------------------------------------------------------===//
 
-class SMXLoadPat<SMXInstLoad load, ValueType vt>
-    : Pat<(vt (int_riscv_smx_load smx_stream_arg:$rs1, smx_sel_arg:$selector)),
-          (load smx_stream_arg:$rs1, smx_sel_arg:$selector)>;
+def smx_load : PatFrag<(ops node:$stream, node:$sel),
+                       (int_riscv_smx_load node:$stream, node:$sel)>;
+def smx_store : PatFrag<(ops node:$stream, node:$sel, node:$val),
+                        (int_riscv_smx_store node:$stream, node:$sel, node:$val)>;
+
+class SMXLoadPat<PatFrag op, SMXInstLoad inst, ValueType vt = XLenVT>
+    : Pat<(vt (op smx_stream_arg:$rs1, smx_sel_arg:$selector)),
+          (inst smx_stream_arg:$rs1, smx_sel_arg:$selector)>;
+
+class SMXStorePat<PatFrag op, SMXInstStore inst, RegisterClass reg = GPR,
+                  ValueType vt = XLenVT>
+    : Pat<(op smx_stream_arg:$rs1, smx_sel_arg:$selector, (vt reg:$rs2)),
+          (inst smx_stream_arg:$rs1, reg:$rs2, smx_sel_arg:$selector)>;
 
 let Predicates = [HasExtXsmx] in {
+
+  /// Induction variable stream configurations
 
   def : Pat<(int_riscv_smx_cfg_iv GPR:$rs2), (SMX_CFG_IV GPR:$rs2, 0)>;
   def : Pat<(int_riscv_smx_cfg_iv simm12:$imm12), (SMX_CFG_IV X0, simm12:$imm12)>;
   def : Pat<(int_riscv_smx_cfg_iv (add GPR:$rs2, simm12:$imm12)),
             (SMX_CFG_IV GPR:$rs2, simm12:$imm12)>;
+
+  /// Memory stream configurations
 
   def : Pat<(int_riscv_smx_cfg_ms GPR:$rs1, GPR:$rs2, smx_stream_arg:$dependent,
                                   0, 0, smx_pat_arg:$pattern, smx_width_arg:$width),
@@ -232,20 +265,35 @@ let Predicates = [HasExtXsmx] in {
             (SMX_CFG_MS GPR:$rs1, GPR:$rs2, smx_stream_arg:$dependent,
                         0b11, smx_pat_arg:$pattern, smx_width_arg:$width)>;
 
+  /// Hint instructions
+
   def : Pat<(int_riscv_smx_ready), (SMX_READY)>;
   def : Pat<(int_riscv_smx_end), (SMX_END)>;
 
-  // def : SMXLoadPat<SMX_LD, i8,  0b00>;
-  // def : SMXLoadPat<SMX_LD, i16, 0b01>;
-  def : SMXLoadPat<SMX_LW, i32>;
+  /// Loads
 
-  def : Pat<(int_riscv_smx_store smx_stream_arg:$rs1, smx_sel_arg:$selector, GPR:$rs2),
-            (SMX_SW smx_stream_arg:$rs1, GPR:$rs2, smx_sel_arg:$selector)>;
+  def : SMXLoadPat<smx_extloadi8, SMX_LB>;
+  def : SMXLoadPat<smx_sextloadi8, SMX_LB>;
+  def : SMXLoadPat<smx_zextloadi8, SMX_LBU>;
+  def : SMXLoadPat<smx_extloadi16, SMX_LH>;
+  def : SMXLoadPat<smx_sextloadi16, SMX_LH>;
+  def : SMXLoadPat<smx_zextloadi16, SMX_LHU>;
+  def : SMXLoadPat<smx_load, SMX_LW>, Requires<[IsRV32]>;
+
+  /// Stores
+
+  def : SMXStorePat<smx_truncstorei8, SMX_SB>;
+  def : SMXStorePat<smx_truncstorei16, SMX_SH>;
+  def : SMXStorePat<smx_store, SMX_SW>, Requires<[IsRV32]>;
+
+  /// Induction variable stream reads
 
   def : Pat<(int_riscv_smx_read_iv smx_stream_arg:$rs1),
             (SMX_RD_IV smx_stream_arg:$rs1, 0)>;
   def : Pat<(add (int_riscv_smx_read_iv smx_stream_arg:$rs1), simm12:$imm12),
             (SMX_RD_IV smx_stream_arg:$rs1, simm12:$imm12)>;
+
+  /// Induction variable stream writes
 
   def : Pat<(int_riscv_smx_write_iv smx_stream_arg:$rs1, GPR:$rs2),
             (SMX_WR_IV smx_stream_arg:$rs1, GPR:$rs2, 0)>;
@@ -253,6 +301,8 @@ let Predicates = [HasExtXsmx] in {
             (SMX_WR_IV smx_stream_arg:$rs1, X0, simm12:$imm12)>;
   def : Pat<(int_riscv_smx_write_iv smx_stream_arg:$rs1, (add GPR:$rs2, simm12:$imm12)),
             (SMX_WR_IV smx_stream_arg:$rs1, GPR:$rs2, simm12:$imm12)>;
+
+  /// Induction variable stream steps
 
   def : Pat<(int_riscv_smx_step smx_stream_arg:$rs1, GPR:$rs2),
             (SMX_STEP smx_stream_arg:$rs1, GPR:$rs2, 0)>;
@@ -264,17 +314,27 @@ let Predicates = [HasExtXsmx] in {
 } // Predicates = [HasExtXsmx]
 
 let Predicates = [HasExtXsmx, IsRV64] in {
-  def : SMXLoadPat<SMX_LD, i64>;
+
+  /// Loads
+
+  def : SMXLoadPat<smx_extloadi32, SMX_LW>;
+  def : SMXLoadPat<smx_sextloadi32, SMX_LW>;
+  def : SMXLoadPat<smx_zextloadi32, SMX_LWU>;
+  def : SMXLoadPat<smx_load, SMX_LD>;
+
+  /// Stores
+
+  def : SMXStorePat<smx_truncstorei32, SMX_SW>;
+  def : SMXStorePat<smx_store, SMX_SD>;
+
 } // Predicates = [HasExtXsmx, IsRV64]
 
 let Predicates = [HasExtXsmx, HasStdExtF] in {
-  def : SMXLoadPat<SMX_FLW, f32>;
-  def : Pat<(int_riscv_smx_store smx_stream_arg:$rs1, smx_sel_arg:$selector, FPR32:$rs2),
-            (SMX_FSW smx_stream_arg:$rs1, FPR32:$rs2, smx_sel_arg:$selector)>;
+  def : SMXLoadPat<smx_load, SMX_FLW, f32>;
+  def : SMXStorePat<smx_store, SMX_FSW, FPR32, f32>;
 } // Predicates = [HasExtXsmx, HasStdExtF]
 
 let Predicates = [HasExtXsmx, HasStdExtD] in {
-  def : SMXLoadPat<SMX_FLD, f64>;
-  def : Pat<(int_riscv_smx_store smx_stream_arg:$rs1, smx_sel_arg:$selector, FPR64:$rs2),
-            (SMX_FSD smx_stream_arg:$rs1, FPR64:$rs2, smx_sel_arg:$selector)>;
+  def : SMXLoadPat<smx_load, SMX_FLD, f64>;
+  def : SMXStorePat<smx_store, SMX_FSD, FPR64, f64>;
 } // Predicates = [HasExtXsmx, HasStdExtF]
