@@ -974,6 +974,9 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
                          ISD::SHL, ISD::STORE, ISD::SPLAT_VECTOR});
   if (Subtarget.useRVVForFixedLengthVectors())
     setTargetDAGCombine(ISD::BITCAST);
+  if (Subtarget.hasExtXsmx())
+    setTargetDAGCombine({ISD::SIGN_EXTEND, ISD::ZERO_EXTEND, ISD::ANY_EXTEND,
+                         ISD::SIGN_EXTEND_INREG});
 
   setLibcallName(RTLIB::FPEXT_F16_F32, "__extendhfsf2");
   setLibcallName(RTLIB::FPROUND_F32_F16, "__truncsfhf2");
@@ -5065,14 +5068,13 @@ SDValue RISCVTargetLowering::LowerINTRINSIC_W_CHAIN(SDValue Op,
 
 SDValue RISCVTargetLowering::LowerINTRINSIC_VOID(SDValue Op,
                                                  SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  MVT XLenVT = Subtarget.getXLenVT();
   unsigned IntNo = Op.getConstantOperandVal(1);
   switch (IntNo) {
   default:
     break;
   case Intrinsic::riscv_masked_strided_store: {
-    SDLoc DL(Op);
-    MVT XLenVT = Subtarget.getXLenVT();
-
     // If the mask is known to be all ones, optimize to an unmasked intrinsic;
     // the selection of the masked intrinsics doesn't do this for us.
     SDValue Mask = Op.getOperand(5);
@@ -5108,11 +5110,8 @@ SDValue RISCVTargetLowering::LowerINTRINSIC_VOID(SDValue Op,
                                    Store->getMemOperand());
   }
   case Intrinsic::riscv_smx_store: {
-    SDLoc DL(Op);
     SDValue Val = Op.getOperand(4);
     EVT VT = Val.getValueType();
-    MVT XLenVT = Subtarget.getXLenVT();
-    if (VT.bitsEq(XLenVT)) break;
 
     unsigned Opc;
     if (VT == MVT::i8) {
@@ -5125,7 +5124,7 @@ SDValue RISCVTargetLowering::LowerINTRINSIC_VOID(SDValue Op,
       Opc = RISCVISD::SMX_TRUNC_STORE_I32;
     }
 
-    return DAG.getNode(Opc, DL, XLenVT, Op.getOperand(0), Op.getOperand(2),
+    return DAG.getNode(Opc, DL, MVT::Other, Op.getOperand(0), Op.getOperand(2),
                        Op.getOperand(3),
                        DAG.getNode(ISD::ANY_EXTEND, DL, XLenVT, Val));
   }
@@ -7414,8 +7413,6 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
           "Don't know how to custom type legalize this intrinsic!");
     case Intrinsic::riscv_smx_load: {
       EVT VT = N->getValueType(0);
-      MVT XLenVT = Subtarget.getXLenVT();
-      if (VT.bitsEq(XLenVT)) return;
 
       unsigned Opc;
       if (VT == MVT::i8) {
@@ -7429,8 +7426,9 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
       }
 
       SDValue Chain = N->getOperand(0);
-      Results.push_back(DAG.getNode(Opc, DL, XLenVT, Chain, N->getOperand(2),
-                                    N->getOperand(3)));
+      Results.push_back(
+          DAG.getNode(Opc, DL, {Subtarget.getXLenVT(), MVT::Other},
+                      {Chain, N->getOperand(2), N->getOperand(3)}));
       Results.push_back(Chain);
       break;
     }
@@ -8281,9 +8279,170 @@ static SDValue performSETCCCombine(SDNode *N, SelectionDAG &DAG,
                                                       dl, OpVT), Cond);
 }
 
+struct SMXLoadInfo {
+  ISD::LoadExtType ExtType;
+  MVT VT;
+  SDValue Chain;
+  SDValue Stream;
+  SDValue Selector;
+};
+
+// Checks the given SDNode is a SMX load node.
+// If so, returns the corresponding SMX load info.
+static Optional<SMXLoadInfo> isSMXLoad(SDNode *N) {
+  SMXLoadInfo Info;
+  switch (N->getOpcode()) {
+  default:
+    return None;
+  case ISD::INTRINSIC_W_CHAIN: {
+    unsigned IntNo = N->getConstantOperandVal(1);
+    if (IntNo != Intrinsic::riscv_smx_load)
+      return None;
+    Info.ExtType = ISD::NON_EXTLOAD;
+    Info.VT = N->getValueType(0).getSimpleVT();
+    Info.Chain = N->getOperand(0);
+    Info.Stream = N->getOperand(2);
+    Info.Selector = N->getOperand(3);
+    break;
+  }
+  case RISCVISD::SMX_EXT_LOAD_I8:
+  case RISCVISD::SMX_SEXT_LOAD_I8:
+  case RISCVISD::SMX_ZEXT_LOAD_I8:
+  case RISCVISD::SMX_EXT_LOAD_I16:
+  case RISCVISD::SMX_SEXT_LOAD_I16:
+  case RISCVISD::SMX_ZEXT_LOAD_I16:
+  case RISCVISD::SMX_EXT_LOAD_I32:
+  case RISCVISD::SMX_SEXT_LOAD_I32:
+  case RISCVISD::SMX_ZEXT_LOAD_I32: {
+#define LOAD_INFO_CASE(OPC, EXT, TY)                                           \
+  case RISCVISD::OPC:                                                          \
+    Info.ExtType = ISD::EXT;                                                   \
+    Info.VT = MVT::TY;                                                         \
+    break;
+    switch (N->getOpcode()) {
+      LOAD_INFO_CASE(SMX_EXT_LOAD_I8, EXTLOAD, i8)
+      LOAD_INFO_CASE(SMX_SEXT_LOAD_I8, SEXTLOAD, i8)
+      LOAD_INFO_CASE(SMX_ZEXT_LOAD_I8, ZEXTLOAD, i8)
+      LOAD_INFO_CASE(SMX_EXT_LOAD_I16, EXTLOAD, i16)
+      LOAD_INFO_CASE(SMX_SEXT_LOAD_I16, SEXTLOAD, i16)
+      LOAD_INFO_CASE(SMX_ZEXT_LOAD_I16, ZEXTLOAD, i16)
+      LOAD_INFO_CASE(SMX_EXT_LOAD_I32, EXTLOAD, i32)
+      LOAD_INFO_CASE(SMX_SEXT_LOAD_I32, SEXTLOAD, i32)
+      LOAD_INFO_CASE(SMX_ZEXT_LOAD_I32, ZEXTLOAD, i32)
+    }
+#undef LOAD_INFO_CASE
+    Info.Chain = N->getOperand(0);
+    Info.Stream = N->getOperand(1);
+    Info.Selector = N->getOperand(2);
+    break;
+  }
+  }
+  return Info;
+}
+
+// Creates a SMX load node from the given SMX load info.
+static SDValue getSMXLoadFromInfo(const SMXLoadInfo &LoadInfo,
+                                  SelectionDAG &DAG, const SDLoc &DL,
+                                  MVT XLenVT) {
+  if (LoadInfo.ExtType == ISD::NON_EXTLOAD) {
+    SDValue IntID =
+        DAG.getTargetConstant(Intrinsic::riscv_smx_load, DL, XLenVT);
+    return DAG.getNode(
+        ISD::INTRINSIC_W_CHAIN, DL, {LoadInfo.VT, MVT::Other},
+        {LoadInfo.Chain, IntID, LoadInfo.Stream, LoadInfo.Selector});
+  } else {
+    uint64_t VTBits = LoadInfo.VT.getFixedSizeInBits();
+    unsigned Opc;
+#define SMX_LOAD_OPC_CASE(EXT, SMX_EXT)                                        \
+  case ISD::EXT:                                                               \
+    switch (VTBits) {                                                          \
+    case 8:                                                                    \
+      Opc = RISCVISD::SMX_##SMX_EXT##_LOAD_I8;                                 \
+      break;                                                                   \
+    case 16:                                                                   \
+      Opc = RISCVISD::SMX_##SMX_EXT##_LOAD_I16;                                \
+      break;                                                                   \
+    case 32:                                                                   \
+      Opc = RISCVISD::SMX_##SMX_EXT##_LOAD_I32;                                \
+      break;                                                                   \
+    default:                                                                   \
+      llvm_unreachable("Unexpected VT");                                       \
+    }                                                                          \
+    break;
+    switch (LoadInfo.ExtType) {
+      SMX_LOAD_OPC_CASE(EXTLOAD, EXT)
+      SMX_LOAD_OPC_CASE(SEXTLOAD, SEXT)
+      SMX_LOAD_OPC_CASE(ZEXTLOAD, ZEXT)
+    default:
+      llvm_unreachable("Unexpected ExtType");
+    }
+#undef SMX_LOAD_OPC_CASE
+    return DAG.getNode(Opc, DL, {XLenVT, MVT::Other},
+                       {LoadInfo.Chain, LoadInfo.Stream, LoadInfo.Selector});
+  }
+}
+
+static SDValue combineExtOfSMXLoad(SDNode *N,
+                                   TargetLowering::DAGCombinerInfo &DCI,
+                                   const RISCVSubtarget &Subtarget) {
+  unsigned Opc = N->getOpcode();
+  SDValue N0 = N->getOperand(0);
+  SDNode *N0Node = N0.getNode();
+  EVT VT = N->getValueType(0);
+  SDLoc DL(N);
+  SelectionDAG &DAG = DCI.DAG;
+  MVT XLenVT = Subtarget.getXLenVT();
+
+  // Check if the operand is a SMX load.
+  auto LoadInfo = isSMXLoad(N0Node);
+  if (!LoadInfo)
+    return SDValue();
+
+  // Fold ([s|z]ext[_inreg] (smx_[s|z]ext_load ...)) -> (smx_[s|z]ext_load ...).
+  if (LoadInfo->ExtType != ISD::NON_EXTLOAD) {
+    if (!VT.bitsEq(XLenVT) || !N0.hasOneUse())
+      return SDValue();
+
+    if (Opc == ISD::SIGN_EXTEND || Opc == ISD::ZERO_EXTEND) {
+      ISD::LoadExtType ExtType =
+          Opc == ISD::SIGN_EXTEND ? ISD::SEXTLOAD : ISD::ZEXTLOAD;
+      if (LoadInfo->ExtType != ISD::EXTLOAD && LoadInfo->ExtType != ExtType)
+        return SDValue();
+      LoadInfo->ExtType = ExtType;
+    } else if (Opc == ISD::SIGN_EXTEND_INREG) {
+      if (!cast<VTSDNode>(N->getOperand(1))->getVT().bitsEq(LoadInfo->VT))
+        return SDValue();
+      LoadInfo->ExtType = ISD::SEXTLOAD;
+    }
+
+    SDValue ExtLoad = getSMXLoadFromInfo(*LoadInfo, DAG, DL, XLenVT);
+    DCI.CombineTo(N, ExtLoad);
+    DAG.ReplaceAllUsesOfValueWith(SDValue(N0Node, 1), ExtLoad.getValue(1));
+
+    if (Opc == ISD::SIGN_EXTEND_INREG) {
+      DCI.AddToWorklist(ExtLoad.getNode());
+    } else if (N0Node->use_empty()) {
+      DCI.recursivelyDeleteUnusedNodes(N0Node);
+    }
+    return SDValue(N, 0); // Return N so it doesn't get rechecked!
+  }
+
+  // Fold (sext_inreg (smx_load ...)) -> (smaller smx_sext_load ...).
+  if (Opc == ISD::SIGN_EXTEND_INREG) {
+    // TODO
+  }
+
+  // Fold ([s|z]ext (smx_load ...)) ->
+  //      ([s|z]ext (truncate (smx_[s|z]ext_load ...))).
+  // TODO
+
+  return SDValue();
+}
+
 static SDValue
-performSIGN_EXTEND_INREGCombine(SDNode *N, SelectionDAG &DAG,
+performSIGN_EXTEND_INREGCombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI,
                                 const RISCVSubtarget &Subtarget) {
+  SelectionDAG &DAG = DCI.DAG;
   SDValue Src = N->getOperand(0);
   EVT VT = N->getValueType(0);
 
@@ -8317,6 +8476,10 @@ performSIGN_EXTEND_INREGCombine(SDNode *N, SelectionDAG &DAG,
                       DAG.getValueType(MVT::i32));
     return DAG.getNode(ISD::SMAX, DL, MVT::i64, Freeze, Neg);
   }
+
+  // Fold (sext_inreg (smx_load ...)).
+  if (Subtarget.hasExtXsmx())
+    return combineExtOfSMXLoad(N, DCI, Subtarget);
 
   return SDValue();
 }
@@ -9095,7 +9258,7 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
   case ISD::SETCC:
     return performSETCCCombine(N, DAG, Subtarget);
   case ISD::SIGN_EXTEND_INREG:
-    return performSIGN_EXTEND_INREGCombine(N, DAG, Subtarget);
+    return performSIGN_EXTEND_INREGCombine(N, DCI, Subtarget);
   case ISD::ZERO_EXTEND:
     // Fold (zero_extend (fp_to_uint X)) to prevent forming fcvt+zexti32 during
     // type legalization. This is safe because fp_to_uint produces poison if
@@ -9117,6 +9280,11 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
         return SDValue(N, 0); // Return N so it doesn't get rechecked.
       }
     }
+    LLVM_FALLTHROUGH;
+  case ISD::SIGN_EXTEND:
+  case ISD::ANY_EXTEND:
+    if (Subtarget.hasExtXsmx())
+      return combineExtOfSMXLoad(N, DCI, Subtarget);
     return SDValue();
   case RISCVISD::SELECT_CC: {
     // Transform
