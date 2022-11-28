@@ -248,15 +248,18 @@ let Predicates = [HasExtXsmx] in {
   /// Memory stream configurations
 
   def : Pat<(int_riscv_smx_cfg_ms GPR:$rs1, GPR:$rs2, smx_stream_arg:$dependent,
-                                  0, 0, smx_pat_arg:$pattern, smx_width_arg:$width),
+                                  (XLenVT 0), (XLenVT 0),
+                                  smx_pat_arg:$pattern, smx_width_arg:$width),
             (SMX_CFG_MS GPR:$rs1, GPR:$rs2, smx_stream_arg:$dependent,
                         0b00, smx_pat_arg:$pattern, smx_width_arg:$width)>;
   def : Pat<(int_riscv_smx_cfg_ms GPR:$rs1, GPR:$rs2, smx_stream_arg:$dependent,
-                                  uimm_xlen, 0, smx_pat_arg:$pattern, smx_width_arg:$width),
+                                  uimm_xlen, (XLenVT 0),
+                                  smx_pat_arg:$pattern, smx_width_arg:$width),
             (SMX_CFG_MS GPR:$rs1, GPR:$rs2, smx_stream_arg:$dependent,
                         0b01, smx_pat_arg:$pattern, smx_width_arg:$width)>;
   def : Pat<(int_riscv_smx_cfg_ms GPR:$rs1, GPR:$rs2, smx_stream_arg:$dependent,
-                                  0, uimm_xlen, smx_pat_arg:$pattern, smx_width_arg:$width),
+                                  (XLenVT 0), uimm_xlen,
+                                  smx_pat_arg:$pattern, smx_width_arg:$width),
             (SMX_CFG_MS GPR:$rs1, GPR:$rs2, smx_stream_arg:$dependent,
                         0b10, smx_pat_arg:$pattern, smx_width_arg:$width)>;
   def : Pat<(int_riscv_smx_cfg_ms GPR:$rs1, GPR:$rs2, smx_stream_arg:$dependent,

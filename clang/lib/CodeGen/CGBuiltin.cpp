@@ -19399,6 +19399,14 @@ Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
     break;
 
   // Xsmx
+  case RISCV::BI__builtin_riscv_smx_cfg_iv:
+    ID = Intrinsic::riscv_smx_cfg_iv;
+    IntrinsicTypes = {Ops[0]->getType()};
+    break;
+  case RISCV::BI__builtin_riscv_smx_cfg_ms:
+    ID = Intrinsic::riscv_smx_cfg_ms;
+    IntrinsicTypes = {Ops[1]->getType()};
+    break;
   case RISCV::BI__builtin_riscv_smx_load_i8:
   case RISCV::BI__builtin_riscv_smx_load_i16:
   case RISCV::BI__builtin_riscv_smx_load_i32:
@@ -19410,7 +19418,7 @@ Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
   case RISCV::BI__builtin_riscv_smx_load_f32:
   case RISCV::BI__builtin_riscv_smx_load_f64:
     ID = Intrinsic::riscv_smx_load;
-    IntrinsicTypes = {ResultType};
+    IntrinsicTypes = {ResultType, Ops[0]->getType()};
     break;
   case RISCV::BI__builtin_riscv_smx_store_i8:
   case RISCV::BI__builtin_riscv_smx_store_i16:
@@ -19419,7 +19427,19 @@ Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
   case RISCV::BI__builtin_riscv_smx_store_f32:
   case RISCV::BI__builtin_riscv_smx_store_f64:
     ID = Intrinsic::riscv_smx_store;
-    IntrinsicTypes = {Ops[2]->getType()};
+    IntrinsicTypes = {Ops[0]->getType(), Ops[2]->getType()};
+    break;
+  case RISCV::BI__builtin_riscv_smx_read_iv:
+    ID = Intrinsic::riscv_smx_read_iv;
+    IntrinsicTypes = {ResultType};
+    break;
+  case RISCV::BI__builtin_riscv_smx_write_iv:
+    ID = Intrinsic::riscv_smx_write_iv;
+    IntrinsicTypes = {Ops[0]->getType()};
+    break;
+  case RISCV::BI__builtin_riscv_smx_step:
+    ID = Intrinsic::riscv_smx_step;
+    IntrinsicTypes = {Ops[0]->getType()};
     break;
 
   // Vector builtins are handled from here.
