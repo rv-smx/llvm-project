@@ -1,3 +1,124 @@
+# LLVM for the RISC-V Stream-Based Memory Access Extension (SMX)
+
+LLVM 15 with the RISC-V stream-based memory access extension (SMX) support, includes:
+
+* SMX builtins for Clang.
+* SMX intrinsics for LLVM IR.
+* Code generation support for SMX intrinsics.
+
+## SMX Builtins for Clang
+
+### Stream Configuration Builtins
+
+```c
+/**
+ * @brief Configures induction variable stream.
+ * 
+ * @param iter_num number of iterations
+ */
+void __builtin_riscv_smx_cfg_iv(size_t iter_num);
+
+/**
+ * @brief Configures memory stream.
+ * 
+ * @param base start address
+ * @param stride stride in bytes
+ * @param dep_stream dependent stream ID,
+ *                   memory stream if pattern==1,
+ *                   otherwise induction variable stream
+ * @param r non-zero if readable
+ * @param w non-zero if writable
+ * @param pattern memory access pattern, 0 for affine, 1 for indirect
+ * @param width log2(load width), e.g. 4 for 16-byte load
+ */
+void __builtin_riscv_smx_cfg_ms(void *base, size_t stride, size_t dep_stream,
+                                size_t r, size_t w, size_t pattern, size_t width);
+```
+
+### Hint Builtins
+
+```c
+/**
+ * @brief Marks stream configuration complete.
+ */
+void __builtin_riscv_smx_ready();
+
+/**
+ * @brief Marks the end of all stream operations.
+ */
+void __builtin_riscv_smx_end();
+```
+
+### Memory Stream Load/Store Builtins
+
+```c
+/**
+ * @brief Loads signed/unsigned 8/16/32/64-bit integer/float data
+ *        from the given memory stream.
+ * 
+ * @param stream memory stream ID
+ * @param selector data selector, 0 for the least significant data
+ * @return data loaded from the stream
+ */
+signed char __builtin_riscv_smx_load_i8(size_t stream, size_t selector);
+unsigned char __builtin_riscv_smx_load_u8(size_t stream, size_t selector);
+short __builtin_riscv_smx_load_i16(size_t stream, size_t selector);
+unsigned short __builtin_riscv_smx_load_u16(size_t stream, size_t selector);
+int32_t __builtin_riscv_smx_load_i32(size_t stream, size_t selector);
+uint32_t __builtin_riscv_smx_load_u32(size_t stream, size_t selector);
+int64_t __builtin_riscv_smx_load_i64(size_t stream, size_t selector);
+uint64_t __builtin_riscv_smx_load_u64(size_t stream, size_t selector);
+float __builtin_riscv_smx_load_f32(size_t stream, size_t selector);
+double __builtin_riscv_smx_load_f64(size_t stream, size_t selector);
+
+/**
+ * @brief Stores signed/unsigned 8/16/32/64-bit integer/float data
+ *        to the given memory stream.
+ * 
+ * @param stream memory stream ID
+ * @param selector data selector, 0 for the least significant data
+ * @param data data to be stored to the stream
+ */
+void __builtin_riscv_smx_store_i8(size_t stream, size_t selector, char data);
+void __builtin_riscv_smx_store_i16(size_t stream, size_t selector, short data);
+void __builtin_riscv_smx_store_i32(size_t stream, size_t selector, int32_t data);
+void __builtin_riscv_smx_store_i64(size_t stream, size_t selector, int64_t data);
+void __builtin_riscv_smx_store_f32(size_t stream, size_t selector, float data);
+void __builtin_riscv_smx_store_f64(size_t stream, size_t selector, double data);
+```
+
+### Induction Variable Stream Builtins
+
+```c
+/**
+ * @brief Reads the value of the given induction variable stream.
+ * 
+ * @param stream induction variable stream ID
+ * @return value of the stream
+ */
+size_t __builtin_riscv_smx_read_iv(size_t stream);
+
+/**
+ * @brief Writes value to the given induction variable stream.
+ * 
+ * @param stream induction variable stream ID
+ * @param value value to be written to the stream
+ */
+void __builtin_riscv_smx_write_iv(size_t stream, size_t value);
+
+/**
+ * @brief Increments the given induction variable stream.
+ * 
+ * @param stream induction variable stream ID
+ * @param step the increment
+ */
+void __builtin_riscv_smx_step(size_t stream, ssize_t step);
+```
+
+## Command Line Options
+
+* `-march=rv64gc_xsmx`: enables SMX extension for RV64GC targets.
+
 # The LLVM Compiler Infrastructure
 
 This directory and its sub-directories contain the source code for LLVM,
