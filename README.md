@@ -6,6 +6,23 @@ LLVM 15 with the RISC-V stream-based memory access extension (SMX) support, incl
 * SMX intrinsics for LLVM IR.
 * Code generation support for SMX intrinsics.
 
+## Building This Project
+
+Check [Getting Started with the LLVM System](https://llvm.org/docs/GettingStarted.html) for more details.
+
+```
+cd llvm-project
+mkdir build
+cd build
+cmake -G Ninja \
+  -DLLVM_TARGETS_TO_BUILD="RISCV" \
+  -DLLVM_ENABLE_PROJECTS="clang;lld" \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/path/to/install/dir \
+  ../llvm
+ninja install
+```
+
 ## SMX Builtins for Clang
 
 ### Stream Configuration Builtins
@@ -13,14 +30,14 @@ LLVM 15 with the RISC-V stream-based memory access extension (SMX) support, incl
 ```c
 /**
  * @brief Configures induction variable stream.
- * 
+ *
  * @param iter_num number of iterations
  */
 void __builtin_riscv_smx_cfg_iv(size_t iter_num);
 
 /**
  * @brief Configures memory stream.
- * 
+ *
  * @param base start address
  * @param stride stride in bytes
  * @param dep_stream dependent stream ID,
@@ -55,7 +72,7 @@ void __builtin_riscv_smx_end();
 /**
  * @brief Loads signed/unsigned 8/16/32/64-bit integer/float data
  *        from the given memory stream.
- * 
+ *
  * @param stream memory stream ID
  * @param selector data selector, 0 for the least significant data
  * @return data loaded from the stream
@@ -74,7 +91,7 @@ double __builtin_riscv_smx_load_f64(size_t stream, size_t selector);
 /**
  * @brief Stores signed/unsigned 8/16/32/64-bit integer/float data
  *        to the given memory stream.
- * 
+ *
  * @param stream memory stream ID
  * @param selector data selector, 0 for the least significant data
  * @param data data to be stored to the stream
@@ -92,7 +109,7 @@ void __builtin_riscv_smx_store_f64(size_t stream, size_t selector, double data);
 ```c
 /**
  * @brief Reads the value of the given induction variable stream.
- * 
+ *
  * @param stream induction variable stream ID
  * @return value of the stream
  */
@@ -100,7 +117,7 @@ size_t __builtin_riscv_smx_read_iv(size_t stream);
 
 /**
  * @brief Writes value to the given induction variable stream.
- * 
+ *
  * @param stream induction variable stream ID
  * @param value value to be written to the stream
  */
@@ -108,7 +125,7 @@ void __builtin_riscv_smx_write_iv(size_t stream, size_t value);
 
 /**
  * @brief Increments the given induction variable stream.
- * 
+ *
  * @param stream induction variable stream ID
  * @param step the increment
  */
