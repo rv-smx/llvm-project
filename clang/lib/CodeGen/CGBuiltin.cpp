@@ -19405,7 +19405,11 @@ Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
     break;
   case RISCV::BI__builtin_riscv_smx_cfg_ms:
     ID = Intrinsic::riscv_smx_cfg_ms;
-    IntrinsicTypes = {Ops[1]->getType()};
+    IntrinsicTypes = {Ops[0]->getType()};
+    break;
+  case RISCV::BI__builtin_riscv_smx_cfg_addr:
+    ID = Intrinsic::riscv_smx_cfg_addr;
+    IntrinsicTypes = {Ops[0]->getType()};
     break;
   case RISCV::BI__builtin_riscv_smx_load_i8:
   case RISCV::BI__builtin_riscv_smx_load_i16:
@@ -19432,10 +19436,6 @@ Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
   case RISCV::BI__builtin_riscv_smx_read_iv:
     ID = Intrinsic::riscv_smx_read_iv;
     IntrinsicTypes = {ResultType};
-    break;
-  case RISCV::BI__builtin_riscv_smx_write_iv:
-    ID = Intrinsic::riscv_smx_write_iv;
-    IntrinsicTypes = {Ops[0]->getType()};
     break;
   case RISCV::BI__builtin_riscv_smx_step:
     ID = Intrinsic::riscv_smx_step;
