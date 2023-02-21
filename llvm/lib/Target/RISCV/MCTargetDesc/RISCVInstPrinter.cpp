@@ -194,27 +194,20 @@ void RISCVInstPrinter::printVMaskReg(const MCInst *MI, unsigned OpNo,
   O << ".t";
 }
 
-void RISCVInstPrinter::printSMXReadWriteArg(const MCInst *MI, unsigned OpNo,
-                                            const MCSubtargetInfo &STI,
-                                            raw_ostream &O) {
-  unsigned SMXReadWriteArg = MI->getOperand(OpNo).getImm();
-  assert(((SMXReadWriteArg >> 4) == 0) &&
-         "Invalid immediate in printSMXReadWriteArg");
-
-  if ((SMXReadWriteArg & RISCVSMXConfig::R) != 0)
-    O << 'r';
-  if ((SMXReadWriteArg & RISCVSMXConfig::W) != 0)
-    O << 'w';
-  if (SMXReadWriteArg == 0)
-    O << '0';
+void RISCVInstPrinter::printSMXStopConditionArg(const MCInst *MI, unsigned OpNo,
+                                                const MCSubtargetInfo &STI,
+                                                raw_ostream &O) {
+  auto SMXStopConditionArg =
+      static_cast<RISCVSMXConfig::StopCondition>(MI->getOperand(OpNo).getImm());
+  O << RISCVSMXConfig::smxStopConditionToString(SMXStopConditionArg);
 }
 
-void RISCVInstPrinter::printSMXPatternArg(const MCInst *MI, unsigned OpNo,
-                                          const MCSubtargetInfo &STI,
-                                          raw_ostream &O) {
-  auto SMXPatternArg =
-      static_cast<RISCVSMXConfig::Pattern>(MI->getOperand(OpNo).getImm());
-  O << RISCVSMXConfig::smxPatternToString(SMXPatternArg);
+void RISCVInstPrinter::printSMXFactorKindArg(const MCInst *MI, unsigned OpNo,
+                                             const MCSubtargetInfo &STI,
+                                             raw_ostream &O) {
+  auto SMXFactorKindArg =
+      static_cast<RISCVSMXConfig::FactorKind>(MI->getOperand(OpNo).getImm());
+  O << RISCVSMXConfig::smxFactorKindToString(SMXFactorKindArg);
 }
 
 const char *RISCVInstPrinter::getRegisterName(unsigned RegNo) {

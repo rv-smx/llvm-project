@@ -506,41 +506,9 @@ public:
     return RISCVFPRndMode::stringToRoundingMode(Str) != RISCVFPRndMode::Invalid;
   }
 
-  /// Return true if the operand is a valid SMX read/write argument e.g.
-  /// (`rw`).
-  bool isSMXReadWriteArg() const {
-    if (!isImm())
-      return false;
-
-    int64_t Imm;
-    RISCVMCExpr::VariantKind VK = RISCVMCExpr::VK_RISCV_None;
-    if (evaluateConstantImm(getImm(), Imm, VK)) {
-      // Only accept 0 as a constant immediate.
-      return VK == RISCVMCExpr::VK_RISCV_None && Imm == 0;
-    }
-
-    auto *SVal = dyn_cast<MCSymbolRefExpr>(getImm());
-
-    if (!SVal || SVal->getKind() != MCSymbolRefExpr::VK_None)
-      return false;
-
-    StringRef Str = SVal->getSymbol().getName();
-    // Letters must be unique, taken from 'rw', and in ascending order. This
-    // holds as long as each individual character is one of 'rw' and is
-    // greater than the previous character.
-    char Prev = '\0';
-    for (char c : Str) {
-      if (c != 'r' && c != 'w')
-        return false;
-      if (c <= Prev)
-        return false;
-      Prev = c;
-    }
-    return true;
-  }
-
-  /// Return true if the operand is a valid SMX memory stream pattern.
-  bool isSMXPatternArg() const {
+  /// Return true if the operand is a valid SMX induction variable stream
+  /// stop condition.
+  bool isSMXStopConditionArg() const {
     if (!isImm())
       return false;
     const MCExpr *Val = getImm();
@@ -550,7 +518,23 @@ public:
 
     StringRef Str = SVal->getSymbol().getName();
 
-    return RISCVSMXConfig::stringToSMXPattern(Str) != RISCVSMXConfig::Invalid;
+    return RISCVSMXConfig::stringToSMXStopCondition(Str) !=
+           RISCVSMXConfig::InvalidCond;
+  }
+
+  /// Return true if the operand is a valid SMX address factor kind.
+  bool isSMXFactorKindArg() const {
+    if (!isImm())
+      return false;
+    const MCExpr *Val = getImm();
+    auto *SVal = dyn_cast<MCSymbolRefExpr>(Val);
+    if (!SVal || SVal->getKind() != MCSymbolRefExpr::VK_None)
+      return false;
+
+    StringRef Str = SVal->getSymbol().getName();
+
+    return RISCVSMXConfig::stringToSMXFactorKind(Str) !=
+           RISCVSMXConfig::InvalidKind;
   }
 
   bool isImmXLenLI() const {
@@ -1033,49 +1017,31 @@ public:
     Inst.addOperand(MCOperand::createImm(getRoundingMode()));
   }
 
-  void addSMXReadWriteArgOperands(MCInst &Inst, unsigned N) const {
+  void addSMXStopConditionArgOperands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
 
-    int64_t Constant = 0;
-    RISCVMCExpr::VariantKind VK = RISCVMCExpr::VK_RISCV_None;
-    if (evaluateConstantImm(getImm(), Constant, VK)) {
-      if (Constant == 0) {
-        Inst.addOperand(MCOperand::createImm(Constant));
-        return;
-      }
-      llvm_unreachable("SMXReadWriteArg must contain only [rw] or be 0");
-    }
-
-    // isSMXReadWriteArg has validated the operand, meaning this cast is safe
+    // isSMXStopConditionArg has validated the operand, meaning this cast is
+    // safe.
     auto SE = cast<MCSymbolRefExpr>(getImm());
+    RISCVSMXConfig::StopCondition StopCondition =
+        RISCVSMXConfig::stringToSMXStopCondition(SE->getSymbol().getName());
+    assert(StopCondition != RISCVSMXConfig::InvalidCond &&
+           "Invalid SMX induction variable stream stop condition");
 
-    unsigned Imm = 0;
-    for (char c : SE->getSymbol().getName()) {
-      switch (c) {
-      default:
-        llvm_unreachable("SMXReadWriteArg must contain only [rw] or be 0");
-      case 'r':
-        Imm |= RISCVSMXConfig::R;
-        break;
-      case 'w':
-        Imm |= RISCVSMXConfig::W;
-        break;
-      }
-    }
-    Inst.addOperand(MCOperand::createImm(Imm));
+    Inst.addOperand(MCOperand::createImm(StopCondition));
   }
 
-  void addSMXPatternArgOperands(MCInst &Inst, unsigned N) const {
+  void addSMXFactorKindArgOperands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
 
-    // isSMXPatternArg has validated the operand, meaning this cast is safe.
+    // isSMXFactorKindArg has validated the operand, meaning this cast is safe.
     auto SE = cast<MCSymbolRefExpr>(getImm());
-    RISCVSMXConfig::Pattern Pattern =
-        RISCVSMXConfig::stringToSMXPattern(SE->getSymbol().getName());
-    assert(Pattern != RISCVSMXConfig::Invalid &&
-           "Invalid SMX memory stream pattern");
+    RISCVSMXConfig::FactorKind FactorKind =
+        RISCVSMXConfig::stringToSMXFactorKind(SE->getSymbol().getName());
+    assert(FactorKind != RISCVSMXConfig::InvalidKind &&
+           "Invalid SMX address factor kind");
 
-    Inst.addOperand(MCOperand::createImm(Pattern));
+    Inst.addOperand(MCOperand::createImm(FactorKind));
   }
 };
 } // end anonymous namespace.
@@ -1338,6 +1304,19 @@ bool RISCVAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
     return Error(
         ErrorLoc,
         "operand must be a valid floating point rounding mode mnemonic");
+  }
+  case Match_InvalidSMXStopConditionArg: {
+    SMLoc ErrorLoc = ((RISCVOperand &)*Operands[ErrorInfo]).getStartLoc();
+    return Error(
+        ErrorLoc,
+        "operand must be a valid "
+        "induction variable stream stop condition mnemonic");
+  }
+  case Match_InvalidSMXFactorKindArg: {
+    SMLoc ErrorLoc = ((RISCVOperand &)*Operands[ErrorInfo]).getStartLoc();
+    return Error(
+        ErrorLoc,
+        "operand must be a valid address factor kind mnemonic");
   }
   case Match_InvalidBareSymbol: {
     SMLoc ErrorLoc = ((RISCVOperand &)*Operands[ErrorInfo]).getStartLoc();

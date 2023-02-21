@@ -301,33 +301,92 @@ inline static bool isValidRoundingMode(unsigned Mode) {
 } // namespace RISCVFPRndMode
 
 namespace RISCVSMXConfig {
-enum ReadWriteField {
-  W = 2,
-  R = 1,
+enum StopCondition {
+  GT = 0,
+  GE = 1,
+  LT = 2,
+  LE = 3,
+  GTU = 4,
+  GEU = 5,
+  LTU = 6,
+  LEU = 7,
+  EQ = 8,
+  NE = 9,
+  InvalidCond
 };
 
-enum Pattern {
-  Affine = 0,
-  Indirect = 1,
-  Invalid
-};
-
-inline static StringRef smxPatternToString(Pattern Pattern) {
-  switch (Pattern) {
+inline static StringRef smxStopConditionToString(StopCondition StopCondition) {
+  switch (StopCondition) {
   default:
-    llvm_unreachable("Unknown SMX memory stream pattern");
-  case RISCVSMXConfig::Affine:
-    return "aff";
-  case RISCVSMXConfig::Indirect:
-    return "ind";
+    llvm_unreachable("Unknown SMX induction variable stop condition");
+  case RISCVSMXConfig::GT:
+    return "gt";
+  case RISCVSMXConfig::GE:
+    return "ge";
+  case RISCVSMXConfig::LT:
+    return "lt";
+  case RISCVSMXConfig::LE:
+    return "le";
+  case RISCVSMXConfig::GTU:
+    return "gtu";
+  case RISCVSMXConfig::GEU:
+    return "geu";
+  case RISCVSMXConfig::LTU:
+    return "ltu";
+  case RISCVSMXConfig::LEU:
+    return "leu";
+  case RISCVSMXConfig::EQ:
+    return "eq";
+  case RISCVSMXConfig::NE:
+    return "ne";
   }
 }
 
-inline static Pattern stringToSMXPattern(StringRef Str) {
-  return StringSwitch<Pattern>(Str)
-      .Case("aff", RISCVSMXConfig::Affine)
-      .Case("ind", RISCVSMXConfig::Indirect)
-      .Default(RISCVSMXConfig::Invalid);
+inline static StopCondition stringToSMXStopCondition(StringRef Str) {
+  return StringSwitch<StopCondition>(Str)
+      .Case("gt", RISCVSMXConfig::GT)
+      .Case("ge", RISCVSMXConfig::GE)
+      .Case("lt", RISCVSMXConfig::LT)
+      .Case("le", RISCVSMXConfig::LE)
+      .Case("gtu", RISCVSMXConfig::GTU)
+      .Case("geu", RISCVSMXConfig::GEU)
+      .Case("ltu", RISCVSMXConfig::LTU)
+      .Case("leu", RISCVSMXConfig::LEU)
+      .Case("eq", RISCVSMXConfig::EQ)
+      .Case("ne", RISCVSMXConfig::NE)
+      .Default(RISCVSMXConfig::InvalidCond);
+}
+
+enum FactorKind {
+  I0 = 0,
+  I1 = 1,
+  M0 = 2,
+  M1 = 3,
+  InvalidKind
+};
+
+inline static StringRef smxFactorKindToString(FactorKind FactorKind) {
+  switch (FactorKind) {
+  default:
+    llvm_unreachable("Unknown SMX address factor kind");
+  case RISCVSMXConfig::I0:
+    return "i0";
+  case RISCVSMXConfig::I1:
+    return "i1";
+  case RISCVSMXConfig::M0:
+    return "m0";
+  case RISCVSMXConfig::M1:
+    return "m1";
+  }
+}
+
+inline static FactorKind stringToSMXFactorKind(StringRef Str) {
+  return StringSwitch<FactorKind>(Str)
+      .Case("i0", RISCVSMXConfig::I0)
+      .Case("i1", RISCVSMXConfig::I1)
+      .Case("m0", RISCVSMXConfig::M0)
+      .Case("m1", RISCVSMXConfig::M1)
+      .Default(RISCVSMXConfig::InvalidKind);
 }
 } // namespace RISCVSMXConfig
 
