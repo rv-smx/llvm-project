@@ -132,7 +132,6 @@ def OPC_AUIPC     : RISCVOpcode<"AUIPC",     0b0010111>;
 def OPC_OP_IMM_32 : RISCVOpcode<"OP_IMM_32", 0b0011011>;
 def OPC_STORE     : RISCVOpcode<"STORE",     0b0100011>;
 def OPC_STORE_FP  : RISCVOpcode<"STORE_FP",  0b0100111>;
-def OPC_CUSTOM_1  : RISCVOpcode<"CUSTOM_1",  0b0101011>;
 def OPC_AMO       : RISCVOpcode<"AMO",       0b0101111>;
 def OPC_OP        : RISCVOpcode<"OP",        0b0110011>;
 def OPC_LUI       : RISCVOpcode<"LUI",       0b0110111>;
