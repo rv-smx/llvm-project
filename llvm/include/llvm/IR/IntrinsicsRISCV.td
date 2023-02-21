@@ -1629,7 +1629,7 @@ let TargetPrefix = "riscv" in {
                   [llvm_anyint_ty, llvm_ptr_ty, LLVMMatchType<0>, LLVMMatchType<0>],
                   [IntrWillReturn, IntrNoMem, IntrHasSideEffects]>;
 
-  // Input: (memory stream ID, factor ID, dependent stream ID, kind, stride, offset)
+  // Input: (memory stream ID, factor ID, kind, dependent stream ID, stride, offset)
   def int_riscv_smx_cfg_addr
       : Intrinsic<[],
                   [llvm_anyint_ty, LLVMMatchType<0>, LLVMMatchType<0>,
@@ -1638,7 +1638,7 @@ let TargetPrefix = "riscv" in {
 
   def int_riscv_smx_ready
       : ClangBuiltin<"__builtin_riscv_smx_ready">,
-        Intrinsic<[], [], [IntrWillReturn, IntrReadMem, IntrHasSideEffects]>;
+        Intrinsic<[], [], [IntrWillReturn, IntrNoMem, IntrHasSideEffects]>;
 
   def int_riscv_smx_end
       : ClangBuiltin<"__builtin_riscv_smx_end">,
