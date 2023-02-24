@@ -123,9 +123,9 @@ TARGET_BUILTIN(__builtin_riscv_sm3p0, "LiLi", "nc", "zksh")
 TARGET_BUILTIN(__builtin_riscv_sm3p1, "LiLi", "nc", "zksh")
 
 // Xsmx extension
-TARGET_BUILTIN(__builtin_riscv_smx_cfg_iv, "vIzzzzIz", "n", "xsmx")
-TARGET_BUILTIN(__builtin_riscv_smx_cfg_ms, "vIzv*IzIz", "n", "xsmx")
-TARGET_BUILTIN(__builtin_riscv_smx_cfg_addr, "vIzIzIzIzzz", "n", "xsmx")
+TARGET_BUILTIN(__builtin_riscv_smx_cfg_iv, "vzzzIz", "n", "xsmx")
+TARGET_BUILTIN(__builtin_riscv_smx_cfg_ms, "vv*zIzIzIzIz", "n", "xsmx")
+TARGET_BUILTIN(__builtin_riscv_smx_cfg_addr, "vzIzIzzIzIz", "n", "xsmx")
 TARGET_BUILTIN(__builtin_riscv_smx_ready, "v", "n", "xsmx")
 TARGET_BUILTIN(__builtin_riscv_smx_end, "v", "n", "xsmx")
 TARGET_BUILTIN(__builtin_riscv_smx_load_i8, "ScIzIz", "n", "xsmx")
@@ -145,7 +145,7 @@ TARGET_BUILTIN(__builtin_riscv_smx_store_f32, "vIzIzf", "n", "xsmx,f")
 TARGET_BUILTIN(__builtin_riscv_smx_load_f64, "dIzIz", "n", "xsmx,d")
 TARGET_BUILTIN(__builtin_riscv_smx_store_f64, "vIzIzd", "n", "xsmx,d")
 TARGET_BUILTIN(__builtin_riscv_smx_read_iv, "zIz", "n", "xsmx")
-TARGET_BUILTIN(__builtin_riscv_smx_step, "vIz", "n", "xsmx")
+TARGET_BUILTIN(__builtin_riscv_smx_step, "zIz", "n", "xsmx")
 
 #undef BUILTIN
 #undef TARGET_BUILTIN
