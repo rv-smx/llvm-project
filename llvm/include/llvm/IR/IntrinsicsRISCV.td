@@ -1616,20 +1616,23 @@ def int_riscv_sm3p1      : ScalarCryptoGprIntrinsicAny;
 
 let TargetPrefix = "riscv" in {
 
-  // Input: (stream ID, initial value, step value, final value, stop condition)
+  // Input: (initial value, step value, final value, stop condition)
   def int_riscv_smx_cfg_iv
       : Intrinsic<[],
                   [llvm_anyint_ty, LLVMMatchType<0>, LLVMMatchType<0>,
+                   LLVMMatchType<0>],
+                  [IntrWillReturn, IntrNoMem, IntrHasSideEffects]>;
+
+  // Input: (base address, stride #1, dependent stream ID #1, kind #1,
+  //         prefetch, log2(width))
+  def int_riscv_smx_cfg_ms
+      : Intrinsic<[],
+                  [llvm_ptr_ty, llvm_anyint_ty, LLVMMatchType<0>, LLVMMatchType<0>,
                    LLVMMatchType<0>, LLVMMatchType<0>],
                   [IntrWillReturn, IntrNoMem, IntrHasSideEffects]>;
 
-  // Input: (stream ID, base address, prefetch, log2(width))
-  def int_riscv_smx_cfg_ms
-      : Intrinsic<[],
-                  [llvm_anyint_ty, llvm_ptr_ty, LLVMMatchType<0>, LLVMMatchType<0>],
-                  [IntrWillReturn, IntrNoMem, IntrHasSideEffects]>;
-
-  // Input: (memory stream ID, factor ID, kind, dependent stream ID, stride, offset)
+  // Input: (stride #1, dependent stream ID #1, kind #1,
+  //         stride #2, dependent stream ID #2, kind #2)
   def int_riscv_smx_cfg_addr
       : Intrinsic<[],
                   [llvm_anyint_ty, LLVMMatchType<0>, LLVMMatchType<0>,
@@ -1662,12 +1665,13 @@ let TargetPrefix = "riscv" in {
   def int_riscv_smx_read_iv
       : Intrinsic<[llvm_anyint_ty],
                   [LLVMMatchType<0>],
-                  [IntrWillReturn, IntrReadMem]>;
+                  [IntrWillReturn, IntrNoMem]>;
 
+  // Output: (read data)
   // Input: (stream ID)
   def int_riscv_smx_step
-      : Intrinsic<[],
-                  [llvm_anyint_ty],
+      : Intrinsic<[llvm_anyint_ty],
+                  [LLVMMatchType<0>],
                   [IntrWillReturn, IntrNoMem, IntrHasSideEffects]>;
 
 } // TargetPrefix = "riscv"
