@@ -1662,13 +1662,6 @@ let TargetPrefix = "riscv" in {
 
   // Output: (read data)
   // Input: (stream ID)
-  def int_riscv_smx_read_iv
-      : Intrinsic<[llvm_anyint_ty],
-                  [LLVMMatchType<0>],
-                  [IntrWillReturn, IntrNoMem]>;
-
-  // Output: (read data)
-  // Input: (stream ID)
   def int_riscv_smx_step
       : Intrinsic<[llvm_anyint_ty],
                   [LLVMMatchType<0>],
