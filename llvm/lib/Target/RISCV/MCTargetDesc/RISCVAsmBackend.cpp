@@ -71,6 +71,7 @@ RISCVAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
       {"fixup_riscv_branch", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_riscv_rvc_jump", 2, 11, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_riscv_rvc_branch", 0, 16, MCFixupKindInfo::FKF_IsPCRel},
+      {"fixup_riscv_smx_branch", 20, 12, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_riscv_call", 0, 64, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_riscv_call_plt", 0, 64, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_riscv_relax", 0, 0, 0},
@@ -480,6 +481,14 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     Value = (Bit8 << 12) | (Bit4_3 << 10) | (Bit7_6 << 5) | (Bit2_1 << 3) |
             (Bit5 << 2);
     return Value;
+  }
+  case RISCV::fixup_riscv_smx_branch: {
+    if (!isInt<13>(Value))
+      Ctx.reportError(Fixup.getLoc(), "fixup value out of range");
+    if (Value & 0x1)
+      Ctx.reportError(Fixup.getLoc(), "fixup value must be 2-byte aligned");
+    // Need to extract imm[12:1] from the 13-bit Value.
+    return (Value >> 1) & 0xfff;
   }
 
   }

@@ -355,6 +355,8 @@ unsigned RISCVMCCodeEmitter::getImmOpValue(const MCInst &MI, unsigned OpNo,
       FixupKind = RISCV::fixup_riscv_rvc_jump;
     } else if (MIFrm == RISCVII::InstFormatCB) {
       FixupKind = RISCV::fixup_riscv_rvc_branch;
+    } else if (MIFrm == RISCVII::InstFormatSMXB) {
+      FixupKind = RISCV::fixup_riscv_smx_branch;
     }
   }
 

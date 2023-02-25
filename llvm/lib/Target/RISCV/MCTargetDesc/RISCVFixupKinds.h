@@ -56,6 +56,8 @@ enum Fixups {
   fixup_riscv_rvc_jump,
   // 8-bit fixup for symbol references in the compressed branch instruction
   fixup_riscv_rvc_branch,
+  // 12-bit fixup for symbol references in the SMX branch instructions
+  fixup_riscv_smx_branch,
   // Fixup representing a legacy no-pic function call attached to the auipc
   // instruction in a pair composed of adjacent auipc+jalr instructions.
   fixup_riscv_call,
