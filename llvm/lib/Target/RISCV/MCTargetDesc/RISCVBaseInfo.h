@@ -215,7 +215,8 @@ enum {
 namespace RISCVOp {
 enum OperandType : unsigned {
   OPERAND_FIRST_RISCV_IMM = MCOI::OPERAND_FIRST_TARGET,
-  OPERAND_UIMM2 = OPERAND_FIRST_RISCV_IMM,
+  OPERAND_UIMM1 = OPERAND_FIRST_RISCV_IMM,
+  OPERAND_UIMM2,
   OPERAND_UIMM3,
   OPERAND_UIMM4,
   OPERAND_UIMM5,
@@ -359,10 +360,8 @@ inline static StopCondition stringToSMXStopCondition(StringRef Str) {
 }
 
 enum FactorKind {
-  I0 = 0,
-  I1 = 1,
-  M0 = 2,
-  M1 = 3,
+  IV = 0,
+  MS = 1,
   InvalidKind
 };
 
@@ -370,23 +369,17 @@ inline static StringRef smxFactorKindToString(FactorKind FactorKind) {
   switch (FactorKind) {
   default:
     llvm_unreachable("Unknown SMX address factor kind");
-  case RISCVSMXConfig::I0:
-    return "i0";
-  case RISCVSMXConfig::I1:
-    return "i1";
-  case RISCVSMXConfig::M0:
-    return "m0";
-  case RISCVSMXConfig::M1:
-    return "m1";
+  case RISCVSMXConfig::IV:
+    return "iv";
+  case RISCVSMXConfig::MS:
+    return "ms";
   }
 }
 
 inline static FactorKind stringToSMXFactorKind(StringRef Str) {
   return StringSwitch<FactorKind>(Str)
-      .Case("i0", RISCVSMXConfig::I0)
-      .Case("i1", RISCVSMXConfig::I1)
-      .Case("m0", RISCVSMXConfig::M0)
-      .Case("m1", RISCVSMXConfig::M1)
+      .Case("iv", RISCVSMXConfig::IV)
+      .Case("ms", RISCVSMXConfig::MS)
       .Default(RISCVSMXConfig::InvalidKind);
 }
 } // namespace RISCVSMXConfig
