@@ -3957,6 +3957,105 @@ SDValue RISCVTargetLowering::lowerSELECT(SDValue Op, SelectionDAG &DAG) const {
   return DAG.getNode(RISCVISD::SELECT_CC, DL, Op.getValueType(), Ops);
 }
 
+static SDValue lowerSMXBranch(SDValue Op, SelectionDAG &DAG, SDLoc DL,
+                              MVT XLenVT, SDValue LHS, SDValue RHS) {
+  unsigned LhsIntNo = LHS.getConstantOperandVal(1);
+  unsigned RhsIntNo = RHS.getConstantOperandVal(1);
+  if (LhsIntNo == Intrinsic::riscv_smx_b_cond) {
+    std::swap(LHS, RHS);
+    std::swap(LhsIntNo, RhsIntNo);
+  }
+  if (RhsIntNo != Intrinsic::riscv_smx_b_cond)
+    return SDValue();
+
+  // Get opcode of SMX branch SD node.
+  unsigned Opcode;
+  switch (LhsIntNo) {
+  default:
+    return SDValue();
+  case Intrinsic::riscv_smx_step_bl:
+    Opcode = RISCVISD::SMX_STEP_BL;
+    break;
+  case Intrinsic::riscv_smx_step_j:
+    Opcode = RISCVISD::SMX_STEP_J;
+    break;
+  case Intrinsic::riscv_smx_bnl:
+    Opcode = RISCVISD::SMX_BNL;
+    break;
+  }
+
+  // Update chain.
+  SDValue LhsInChain = LHS.getOperand(0);
+  SDValue LhsOutChain = LHS.getValue(1);
+  SDValue RhsInChain = RHS.getOperand(0);
+  SDValue RhsOutChain = RHS.getValue(1);
+  if (LhsOutChain == RhsInChain) {
+    DAG.ReplaceAllUsesOfValueWith(RhsOutChain, LhsInChain);
+  } else if (RhsOutChain == LhsInChain) {
+    DAG.ReplaceAllUsesOfValueWith(LhsOutChain, RhsInChain);
+  } else {
+    return SDValue();
+  }
+
+  // Create SMX branch node.
+  SDValue Branch =
+      DAG.getNode(Opcode, DL, {XLenVT, Op.getValueType()},
+                  {Op.getOperand(0), LHS.getOperand(2), Op.getOperand(2)});
+
+  // Update chains.
+  SDValue Result = LHS.getValue(0);
+  SDValue Chain = Branch.getValue(1);
+  SmallVector<SDValue, 1> Chains;
+  for (auto UI = Result.getNode()->use_begin();
+       UI != Result.getNode()->use_end(); ++UI) {
+    SDUse &Use = UI.getUse();
+    if (Use.getResNo() != Result.getResNo())
+      continue;
+
+    // Make sure there is a chain in the user.
+    SDNode *User = *UI;
+    if (User->getNumOperands() == 0)
+      continue;
+    SDValue InChain = User->getOperand(0);
+    SDValue OutChain = SDValue(User, User->getNumValues() - 1);
+    if (InChain.getValueType() != MVT::Other ||
+        OutChain.getValueType() != MVT::Other)
+      continue;
+
+    // Take the user off the chain.
+    DAG.ReplaceAllUsesOfValueWith(OutChain, InChain);
+
+    // Recreate the user with new chain.
+    SmallVector<SDValue> Ops;
+    for (auto Op : User->op_values()) {
+      if (Ops.empty())
+        Ops.push_back(Chain);
+      else
+        Ops.push_back(Op);
+    }
+    SDValue Value =
+        DAG.getNode(User->getOpcode(), User,
+                    ArrayRef<EVT>(User->value_begin(), User->value_end()), Ops);
+
+    // Replace the user with the new one.
+    for (unsigned Idx = 0; Idx < User->getNumValues(); ++Idx) {
+      SDValue Result = Value.getValue(Idx);
+      if (Idx == User->getNumValues() - 1)
+        Chains.push_back(Result);
+      else
+        DAG.ReplaceAllUsesOfValueWith(SDValue(User, Idx), Result);
+    }
+  }
+  if (!Chains.empty()) {
+    Chain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other,
+                        ArrayRef<SDValue>(Chains));
+  }
+
+  // Update result.
+  DAG.ReplaceAllUsesOfValueWith(Result, Branch.getValue(0));
+  return Chain;
+}
+
 SDValue RISCVTargetLowering::lowerBRCOND(SDValue Op, SelectionDAG &DAG) const {
   SDValue CondV = Op.getOperand(1);
   SDLoc DL(Op);
@@ -3967,6 +4066,13 @@ SDValue RISCVTargetLowering::lowerBRCOND(SDValue Op, SelectionDAG &DAG) const {
     SDValue LHS = CondV.getOperand(0);
     SDValue RHS = CondV.getOperand(1);
     ISD::CondCode CCVal = cast<CondCodeSDNode>(CondV.getOperand(2))->get();
+
+    // Check if is a SMX branch.
+    if (CCVal == ISD::SETEQ && LHS.getOpcode() == ISD::INTRINSIC_W_CHAIN &&
+        RHS.getOpcode() == ISD::INTRINSIC_W_CHAIN) {
+      if (SDValue Result = lowerSMXBranch(Op, DAG, DL, XLenVT, LHS, RHS))
+        return Result;
+    }
 
     translateSetCCForBranch(DL, LHS, RHS, CCVal, DAG);
 
@@ -7427,7 +7533,7 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
 
       SDValue Chain = N->getOperand(0);
       Results.push_back(
-          DAG.getNode(Opc, DL, {Subtarget.getXLenVT(), MVT::Other},
+          DAG.getNode(Opc, DL, {Subtarget.getXLenVT(), Chain.getValueType()},
                       {Chain, N->getOperand(2), N->getOperand(3)}));
       Results.push_back(Chain);
       break;
@@ -11996,6 +12102,9 @@ const char *RISCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(SMX_TRUNC_STORE_I8)
   NODE_NAME_CASE(SMX_TRUNC_STORE_I16)
   NODE_NAME_CASE(SMX_TRUNC_STORE_I32)
+  NODE_NAME_CASE(SMX_STEP_BL)
+  NODE_NAME_CASE(SMX_STEP_J)
+  NODE_NAME_CASE(SMX_BNL)
   }
   // clang-format on
   return nullptr;

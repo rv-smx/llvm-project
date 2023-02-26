@@ -338,6 +338,10 @@ enum NodeType : unsigned {
   SMX_TRUNC_STORE_I8,
   SMX_TRUNC_STORE_I16,
   SMX_TRUNC_STORE_I32,
+  // SMX branch operations.
+  SMX_STEP_BL,
+  SMX_STEP_J,
+  SMX_BNL,
 
   // FP to 32 bit int conversions for RV64. These are used to keep track of the
   // result being sign extended to 64 bit. These saturate out of range inputs.
