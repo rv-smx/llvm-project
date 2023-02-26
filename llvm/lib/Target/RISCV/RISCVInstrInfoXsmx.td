@@ -23,6 +23,10 @@ def SDT_RISCVSMXTruncStore : SDTypeProfile<0, 3, [SDTCisVT<0, XLenVT>,
                                                   SDTCisVT<1, XLenVT>,
                                                   SDTCisVT<2, XLenVT>]>;
 
+def SDT_RISCVSMXBranch : SDTypeProfile<1, 2, [SDTCisVT<0, XLenVT>,
+                                              SDTCisVT<1, XLenVT>,
+                                              SDTCisVT<2, OtherVT>]>;
+
 multiclass RISCVSMXExtLoad<string ext, int len> {
   defvar node_name = "smx_" # NAME # "_load_i" # len;
   def node_name : SDNode<"RISCVISD::SMX_" # ext # "_LOAD_I" # len,
@@ -47,6 +51,13 @@ foreach l = [8, 16, 32] in {
   defm zext : RISCVSMXExtLoad<"ZEXT", l>;
   defm "" : RISCVSMXTruncStore<l>;
 }
+
+def smx_step_bl : SDNode<"RISCVISD::SMX_STEP_BL", SDT_RISCVSMXBranch,
+                         [SDNPHasChain]>;
+def smx_step_j  : SDNode<"RISCVISD::SMX_STEP_J", SDT_RISCVSMXBranch,
+                         [SDNPHasChain]>;
+def smx_bnl     : SDNode<"RISCVISD::SMX_BNL", SDT_RISCVSMXBranch,
+                         [SDNPHasChain]>;
 
 //===----------------------------------------------------------------------===//
 // Operand definitions
@@ -163,6 +174,20 @@ let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in {
                 (outs GPR:$rd), (ins smx_stream_arg:$rs1, simm12:$imm12),
                 opcodestr, "$rd, $rs1, $imm12">;
 
+  class SMXInstBranch<bits<3> funct3, string opcodestr>
+      : RVInst<(outs GPR:$rd), (ins smx_stream_arg:$stream, simm13_lsb0:$imm12),
+               opcodestr, "$rd, $stream, $imm12", [], InstFormatSMXB> {
+    bits<12> imm12;
+    bits<5> stream;
+    bits<5> rd;
+
+    let Inst{31-20} = imm12;
+    let Inst{19-15} = stream;
+    let Inst{14-12} = funct3;
+    let Inst{11-7} = rd;
+    let Opcode = OPC_CUSTOM_1.Value;
+  }
+
 } // hasSideEffects = 1, mayLoad = 0, mayStore = 0
 
 let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
@@ -207,6 +232,9 @@ let Predicates = [HasExtXsmx] in {
   def SMX_SH       : SMXInstStore   <GPR, 0b01,    0b101, "smx.sh">, Sched<[]>;
   def SMX_SW       : SMXInstStore   <GPR, 0b10,    0b101, "smx.sw">, Sched<[]>;
   def SMX_STEP     : SMXInstStep    <              0b000, "smx.step">, Sched<[]>;
+  def SMX_STEP_BL  : SMXInstBranch  <              0b001, "smx.step.bl">, Sched<[]>;
+  def SMX_STEP_J   : SMXInstBranch  <              0b010, "smx.step.j">, Sched<[]>;
+  def SMX_BNL      : SMXInstBranch  <              0b011, "smx.bnl">, Sched<[]>;
 } // Predicates = [HasExtXsmx]
 
 let Predicates = [HasExtXsmx, IsRV64] in {
@@ -310,6 +338,15 @@ let Predicates = [HasExtXsmx] in {
             (SMX_STEP smx_stream_arg:$rs1, 0)>;
   def : Pat<(add (int_riscv_smx_step smx_stream_arg:$rs1), simm12:$imm12),
             (SMX_STEP smx_stream_arg:$rs1, simm12:$imm12)>;
+
+  /// Branch instructions
+
+  def : Pat<(smx_step_bl smx_stream_arg:$stream, bb:$imm12),
+            (SMX_STEP_BL smx_stream_arg:$stream, simm13_lsb0:$imm12)>;
+  def : Pat<(smx_step_j smx_stream_arg:$stream, bb:$imm12),
+            (SMX_STEP_J smx_stream_arg:$stream, simm13_lsb0:$imm12)>;
+  def : Pat<(smx_bnl smx_stream_arg:$stream, bb:$imm12),
+            (SMX_BNL smx_stream_arg:$stream, simm13_lsb0:$imm12)>;
 
 } // Predicates = [HasExtXsmx]
 
