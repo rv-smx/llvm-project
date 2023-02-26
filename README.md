@@ -31,7 +31,6 @@ ninja install
 /**
  * @brief Configures induction variable stream.
  *
- * @param id stream ID
  * @param init_val initial value
  * @param step_val step value
  * @param final_val final value
@@ -47,34 +46,38 @@ ninja install
  *                  8 - equal
  *                  9 - not equal
  */
-void __builtin_riscv_smx_cfg_iv(size_t id, size_t init_val, size_t step_val,
+void __builtin_riscv_smx_cfg_iv(size_t init_val, size_t step_val,
                                 size_t final_val, size_t stop_cond);
 
 /**
  * @brief Configures memory stream.
  *
- * @param id stream ID
  * @param base base address
+ * @param stride1 stride of the first address factor
+ * @param dep1 dependent stream ID of the first address factor
+ * @param kind1 kind of the first address factor
  * @param prefetch non-zero if enable prefetch on this stream
  * @param width log2(load width), e.g. 4 for 16-byte load
  */
-void __builtin_riscv_smx_cfg_ms(size_t id, void *base, size_t prefetch,
-                                size_t width);
+void __builtin_riscv_smx_cfg_ms(void *base, size_t stride1, size_t dep1,
+                                size_t kind1, size_t prefetch, size_t width);
 
 /**
  * @brief Configures address factor for memory stream.
  *
- * @param ms_id memory stream ID
- * @param id factor ID, 0 or 1
- * @param kind 0 for induction variable stream factor,
- *             1 for memory stream factor
- * @param dep_stream dependent stream ID
- * @param stride stride in bytes
- * @param offset offset that will be added to the dependent stream
+ * @param stride1 stride #1
+ * @param dep1 dependent stream ID #1
+ * @param kind1 kind #1
+ *              0 - induction variable stream factor
+ *              otherwise - memory stream factor
+ * @param stride2 stride #2
+ * @param dep2 dependent stream ID #2
+ * @param kind2 kind #2
+ *              0 - induction variable stream factor
+ *              otherwise - memory stream factor
  */
-void __builtin_riscv_smx_cfg_addr(size_t ms_id, size_t id, size_t kind,
-                                  size_t dep_stream, size_t stride,
-                                  size_t offset);
+void __builtin_riscv_smx_cfg_addr(size_t stride1, size_t dep1, size_t kind1,
+                                  size_t stride2, size_t dep2, size_t kind2);
 ```
 
 ### Hint Builtins
@@ -133,19 +136,51 @@ void __builtin_riscv_smx_store_f64(size_t stream, size_t selector, double data);
 
 ```c
 /**
- * @brief Reads the value of the given induction variable stream.
+ * @brief Steps the given induction variable stream.
  *
  * @param stream induction variable stream ID
- * @return value of the stream
+ * @return value of the induction variable stream after step.
  */
-size_t __builtin_riscv_smx_read_iv(size_t stream);
+size_t __builtin_riscv_smx_step(size_t stream);
+```
+
+### Stream Branch Builtins
+
+```c
+/**
+ * @brief Steps the given induction variable stream,
+ *        then read its value and branch if loop.
+ *
+ * @param stream induction variable stream ID
+ * @return value of the induction variable stream after step.
+ */
+size_t __builtin_riscv_smx_step_bl(size_t stream);
 
 /**
- * @brief Increments the given induction variable stream.
+ * @brief Steps the given induction variable stream,
+ *        then read its value and jump.
  *
  * @param stream induction variable stream ID
+ * @return value of the induction variable stream after step.
  */
-void __builtin_riscv_smx_step(size_t stream);
+size_t __builtin_riscv_smx_step_j(size_t stream);
+
+/**
+ * @brief Reads the given induction variable stream,
+ *        and branch if not loop.
+ *
+ * @param stream induction variable stream ID
+ * @return value of the induction variable stream after step.
+ */
+size_t __builtin_riscv_smx_bnl(size_t stream);
+
+/**
+ * @brief Branch condition, just for building SMX branch and hinting,
+ *        not an actual instruction.
+ *
+ * @return value of the condition.
+ */
+size_t __builtin_riscv_smx_b_cond();
 ```
 
 ## Command Line Options
