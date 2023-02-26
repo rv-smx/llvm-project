@@ -120,13 +120,13 @@ def uimm_xlen : ImmLeaf<XLenVT, [{}]>;
 
 let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in {
 
-  class SMXInstCfgIV<bits<2> funct2, bits<3> funct3, string opcodestr>
+  class SMXInstCfgIV<bit unsigned, bits<2> funct2, bits<3> funct3, string opcodestr>
       : RVInstR4<funct2, funct3, OPC_CUSTOM_0, (outs),
                  (ins GPR:$rs1, GPR:$rs2, GPR:$rs3, smx_stop_cond_arg:$cond),
                  opcodestr, "$rs1, $rs2, $rs3, $cond"> {
     bits<4> cond;
 
-    let rd{4} = 0;
+    let rd{4} = unsigned;
     let rd{3-0} = cond;
   }
 
@@ -186,9 +186,6 @@ let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in {
     let Inst{14-12} = funct3;
     let Inst{11-7} = rd;
     let Opcode = OPC_CUSTOM_1.Value;
-
-    let isBranch = 1;
-    let isTerminator = 1;
   }
 
 } // hasSideEffects = 1, mayLoad = 0, mayStore = 0
@@ -220,30 +217,36 @@ class SMXInstStore<RegisterClass rs2, bits<2> width,
 //===----------------------------------------------------------------------===//
 
 let Predicates = [HasExtXsmx] in {
-  def SMX_CFG_IV   : SMXInstCfgIV   <        0b00, 0b000, "smx.cfg.iv">, Sched<[]>;
-  def SMX_CFG_MS   : SMXInstCfgMS   <           0, 0b001, "smx.cfg.ms">, Sched<[]>;
-  def SMX_CFG_MS_P : SMXInstCfgMS   <           1, 0b001, "smx.cfg.ms.p">, Sched<[]>;
-  def SMX_CFG_ADDR : SMXInstCfgAddr <              0b010, "smx.cfg.addr">, Sched<[]>;
-  def SMX_READY    : SMXInstHint    <   0b0000001, 0b011, "smx.ready">, Sched<[]>;
-  def SMX_END      : SMXInstHint    <   0b0000010, 0b011, "smx.end">, Sched<[]>;
-  def SMX_LB       : SMXInstLoad    <GPR, 0b00, 0, 0b100, "smx.lb">, Sched<[]>;
-  def SMX_LBU      : SMXInstLoad    <GPR, 0b00, 1, 0b100, "smx.lbu">, Sched<[]>;
-  def SMX_LH       : SMXInstLoad    <GPR, 0b01, 0, 0b100, "smx.lh">, Sched<[]>;
-  def SMX_LHU      : SMXInstLoad    <GPR, 0b01, 1, 0b100, "smx.lhu">, Sched<[]>;
-  def SMX_LW       : SMXInstLoad    <GPR, 0b10, 0, 0b100, "smx.lw">, Sched<[]>;
-  def SMX_SB       : SMXInstStore   <GPR, 0b00,    0b101, "smx.sb">, Sched<[]>;
-  def SMX_SH       : SMXInstStore   <GPR, 0b01,    0b101, "smx.sh">, Sched<[]>;
-  def SMX_SW       : SMXInstStore   <GPR, 0b10,    0b101, "smx.sw">, Sched<[]>;
-  def SMX_STEP     : SMXInstStep    <              0b000, "smx.step">, Sched<[]>;
-  def SMX_STEP_BL  : SMXInstBranch  <              0b001, "smx.step.bl">, Sched<[]>;
-  def SMX_STEP_J   : SMXInstBranch  <              0b010, "smx.step.j">, Sched<[]>;
-  def SMX_BNL      : SMXInstBranch  <              0b011, "smx.bnl">, Sched<[]>;
+  def SMX_CFG_IV_B  : SMXInstCfgIV   <     0, 0b00, 0b000, "smx.cfg.iv.b">, Sched<[]>;
+  def SMX_CFG_IV_BU : SMXInstCfgIV   <     1, 0b00, 0b000, "smx.cfg.iv.bu">, Sched<[]>;
+  def SMX_CFG_IV_H  : SMXInstCfgIV   <     0, 0b01, 0b000, "smx.cfg.iv.h">, Sched<[]>;
+  def SMX_CFG_IV_HU : SMXInstCfgIV   <     1, 0b01, 0b000, "smx.cfg.iv.hu">, Sched<[]>;
+  def SMX_CFG_IV_W  : SMXInstCfgIV   <     0, 0b10, 0b000, "smx.cfg.iv.w">, Sched<[]>;
+  def SMX_CFG_MS    : SMXInstCfgMS   <           0, 0b001, "smx.cfg.ms">, Sched<[]>;
+  def SMX_CFG_MS_P  : SMXInstCfgMS   <           1, 0b001, "smx.cfg.ms.p">, Sched<[]>;
+  def SMX_CFG_ADDR  : SMXInstCfgAddr <              0b010, "smx.cfg.addr">, Sched<[]>;
+  def SMX_READY     : SMXInstHint    <   0b0000001, 0b011, "smx.ready">, Sched<[]>;
+  def SMX_END       : SMXInstHint    <   0b0000010, 0b011, "smx.end">, Sched<[]>;
+  def SMX_LB        : SMXInstLoad    <GPR, 0b00, 0, 0b100, "smx.lb">, Sched<[]>;
+  def SMX_LBU       : SMXInstLoad    <GPR, 0b00, 1, 0b100, "smx.lbu">, Sched<[]>;
+  def SMX_LH        : SMXInstLoad    <GPR, 0b01, 0, 0b100, "smx.lh">, Sched<[]>;
+  def SMX_LHU       : SMXInstLoad    <GPR, 0b01, 1, 0b100, "smx.lhu">, Sched<[]>;
+  def SMX_LW        : SMXInstLoad    <GPR, 0b10, 0, 0b100, "smx.lw">, Sched<[]>;
+  def SMX_SB        : SMXInstStore   <GPR, 0b00,    0b101, "smx.sb">, Sched<[]>;
+  def SMX_SH        : SMXInstStore   <GPR, 0b01,    0b101, "smx.sh">, Sched<[]>;
+  def SMX_SW        : SMXInstStore   <GPR, 0b10,    0b101, "smx.sw">, Sched<[]>;
+  def SMX_STEP      : SMXInstStep    <              0b000, "smx.step">, Sched<[]>;
+  def SMX_STEP_BL   : SMXInstBranch  <              0b001, "smx.step.bl">, Sched<[]>;
+  def SMX_STEP_J    : SMXInstBranch  <              0b010, "smx.step.j">, Sched<[]>;
+  def SMX_BNL       : SMXInstBranch  <              0b011, "smx.bnl">, Sched<[]>;
 } // Predicates = [HasExtXsmx]
 
 let Predicates = [HasExtXsmx, IsRV64] in {
-  def SMX_LWU : SMXInstLoad  <GPR, 0b10, 1, 0b100, "smx.lwu">, Sched<[]>;
-  def SMX_LD  : SMXInstLoad  <GPR, 0b11, 0, 0b100, "smx.ld">, Sched<[]>;
-  def SMX_SD  : SMXInstStore <GPR, 0b11,    0b101, "smx.sd">, Sched<[]>;
+  def SMX_CFG_IV_WU : SMXInstCfgIV <     1, 0b10, 0b000, "smx.cfg.iv.wu">, Sched<[]>;
+  def SMX_CFG_IV_D  : SMXInstCfgIV <     0, 0b11, 0b000, "smx.cfg.iv.d">, Sched<[]>;
+  def SMX_LWU       : SMXInstLoad  <GPR, 0b10, 1, 0b100, "smx.lwu">, Sched<[]>;
+  def SMX_LD        : SMXInstLoad  <GPR, 0b11, 0, 0b100, "smx.ld">, Sched<[]>;
+  def SMX_SD        : SMXInstStore <GPR, 0b11,    0b101, "smx.sd">, Sched<[]>;
 } // Predicates = [HasExtXsmx, IsRV64]
 
 let Predicates = [HasExtXsmx, HasStdExtF] in {
@@ -275,12 +278,6 @@ class SMXStorePat<PatFrag op, SMXInstStore inst, RegisterClass reg = GPR,
           (inst smx_stream_arg:$rs1, reg:$rs2, smx_sel_arg:$selector)>;
 
 let Predicates = [HasExtXsmx] in {
-
-  /// Induction variable stream configurations
-
-  def : Pat<(int_riscv_smx_cfg_iv GPR:$rs1, GPR:$rs2, GPR:$rs3,
-                                  smx_stop_cond_arg:$cond),
-            (SMX_CFG_IV GPR:$rs1, GPR:$rs2, GPR:$rs3, smx_stop_cond_arg:$cond)>;
 
   /// Memory stream configurations
 
@@ -327,13 +324,11 @@ let Predicates = [HasExtXsmx] in {
   def : SMXLoadPat<smx_extloadi16, SMX_LH>;
   def : SMXLoadPat<smx_sextloadi16, SMX_LH>;
   def : SMXLoadPat<smx_zextloadi16, SMX_LHU>;
-  def : SMXLoadPat<smx_load, SMX_LW>, Requires<[IsRV32]>;
 
   /// Stores
 
   def : SMXStorePat<smx_truncstorei8, SMX_SB>;
   def : SMXStorePat<smx_truncstorei16, SMX_SH>;
-  def : SMXStorePat<smx_store, SMX_SW>, Requires<[IsRV32]>;
 
   /// Induction variable stream steps
 
@@ -353,7 +348,31 @@ let Predicates = [HasExtXsmx] in {
 
 } // Predicates = [HasExtXsmx]
 
+let Predicates = [HasExtXsmx, IsRV32] in {
+
+  /// Induction variable stream configurations
+
+  def : Pat<(int_riscv_smx_cfg_iv GPR:$rs1, GPR:$rs2, GPR:$rs3,
+                                  smx_stop_cond_arg:$cond),
+            (SMX_CFG_IV_W GPR:$rs1, GPR:$rs2, GPR:$rs3, smx_stop_cond_arg:$cond)>;
+
+  /// Loads
+
+  def : SMXLoadPat<smx_load, SMX_LW>;
+
+  /// Stores
+
+  def : SMXStorePat<smx_store, SMX_SW>;
+
+} // Predicates = [HasExtXsmx, IsRV32]
+
 let Predicates = [HasExtXsmx, IsRV64] in {
+
+  /// Induction variable stream configurations
+
+  def : Pat<(int_riscv_smx_cfg_iv GPR:$rs1, GPR:$rs2, GPR:$rs3,
+                                  smx_stop_cond_arg:$cond),
+            (SMX_CFG_IV_D GPR:$rs1, GPR:$rs2, GPR:$rs3, smx_stop_cond_arg:$cond)>;
 
   /// Loads
 
