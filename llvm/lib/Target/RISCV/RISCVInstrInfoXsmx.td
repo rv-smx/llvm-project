@@ -186,6 +186,9 @@ let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in {
     let Inst{14-12} = funct3;
     let Inst{11-7} = rd;
     let Opcode = OPC_CUSTOM_1.Value;
+
+    let isBranch = 1;
+    let isTerminator = 1;
   }
 
 } // hasSideEffects = 1, mayLoad = 0, mayStore = 0
