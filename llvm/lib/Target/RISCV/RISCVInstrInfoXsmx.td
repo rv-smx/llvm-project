@@ -225,8 +225,8 @@ let Predicates = [HasExtXsmx] in {
   def SMX_CFG_MS    : SMXInstCfgMS   <           0, 0b001, "smx.cfg.ms">, Sched<[]>;
   def SMX_CFG_MS_P  : SMXInstCfgMS   <           1, 0b001, "smx.cfg.ms.p">, Sched<[]>;
   def SMX_CFG_ADDR  : SMXInstCfgAddr <              0b010, "smx.cfg.addr">, Sched<[]>;
-  def SMX_READY     : SMXInstHint    <   0b0000001, 0b011, "smx.ready">, Sched<[]>;
-  def SMX_END       : SMXInstHint    <   0b0000010, 0b011, "smx.end">, Sched<[]>;
+  def SMX_READY     : SMXInstHint    <   0b0000000, 0b011, "smx.ready">, Sched<[]>;
+  def SMX_END       : SMXInstHint    <   0b0000001, 0b011, "smx.end">, Sched<[]>;
   def SMX_LB        : SMXInstLoad    <GPR, 0b00, 0, 0b100, "smx.lb">, Sched<[]>;
   def SMX_LBU       : SMXInstLoad    <GPR, 0b00, 1, 0b100, "smx.lbu">, Sched<[]>;
   def SMX_LH        : SMXInstLoad    <GPR, 0b01, 0, 0b100, "smx.lh">, Sched<[]>;
