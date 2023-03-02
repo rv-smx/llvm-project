@@ -144,11 +144,9 @@ TARGET_BUILTIN(__builtin_riscv_smx_load_f32, "fIzIz", "n", "xsmx,f")
 TARGET_BUILTIN(__builtin_riscv_smx_store_f32, "vIzIzf", "n", "xsmx,f")
 TARGET_BUILTIN(__builtin_riscv_smx_load_f64, "dIzIz", "n", "xsmx,d")
 TARGET_BUILTIN(__builtin_riscv_smx_store_f64, "vIzIzd", "n", "xsmx,d")
+TARGET_BUILTIN(__builtin_riscv_smx_read, "zIz", "n", "xsmx")
 TARGET_BUILTIN(__builtin_riscv_smx_step, "zIz", "n", "xsmx")
-TARGET_BUILTIN(__builtin_riscv_smx_step_bl, "zIz", "n", "xsmx")
-TARGET_BUILTIN(__builtin_riscv_smx_step_j, "zIz", "n", "xsmx")
-TARGET_BUILTIN(__builtin_riscv_smx_bnl, "zIz", "n", "xsmx")
-TARGET_BUILTIN(__builtin_riscv_smx_b_cond, "z", "n", "xsmx")
+TARGET_BUILTIN(__builtin_riscv_smx_stop_val, "zIz", "n", "xsmx")
 
 #undef BUILTIN
 #undef TARGET_BUILTIN

@@ -1662,35 +1662,24 @@ let TargetPrefix = "riscv" in {
 
   // Output: (read data)
   // Input: (stream ID)
+  def int_riscv_smx_read
+      : Intrinsic<[llvm_anyint_ty],
+                  [LLVMMatchType<0>],
+                  [IntrWillReturn, IntrReadMem]>;
+
+  // Output: (read data)
+  // Input: (stream ID)
   def int_riscv_smx_step
       : Intrinsic<[llvm_anyint_ty],
                   [LLVMMatchType<0>],
                   [IntrWillReturn, IntrNoMem, IntrHasSideEffects]>;
 
-  // Output: (read data)
+  // Output: (stop value)
   // Input: (stream ID)
-  def int_riscv_smx_step_bl
+  // For constructing SMX branches only.
+  def int_riscv_smx_stop_val
       : Intrinsic<[llvm_anyint_ty],
                   [LLVMMatchType<0>],
-                  [IntrWillReturn, IntrNoMem, IntrHasSideEffects]>;
-
-  // Output: (read data)
-  // Input: (stream ID)
-  def int_riscv_smx_step_j
-      : Intrinsic<[llvm_anyint_ty],
-                  [LLVMMatchType<0>],
-                  [IntrWillReturn, IntrNoMem, IntrHasSideEffects]>;
-
-  // Output: (read data)
-  // Input: (stream ID)
-  def int_riscv_smx_bnl
-      : Intrinsic<[llvm_anyint_ty],
-                  [LLVMMatchType<0>],
-                  [IntrWillReturn, IntrNoMem, IntrHasSideEffects]>;
-
-  def int_riscv_smx_b_cond
-      : Intrinsic<[llvm_anyint_ty],
-                  [],
                   [IntrWillReturn, IntrNoMem, IntrHasSideEffects]>;
 
 } // TargetPrefix = "riscv"

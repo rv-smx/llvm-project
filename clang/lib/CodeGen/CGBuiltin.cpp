@@ -19433,24 +19433,16 @@ Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
     ID = Intrinsic::riscv_smx_store;
     IntrinsicTypes = {Ops[0]->getType(), Ops[2]->getType()};
     break;
+  case RISCV::BI__builtin_riscv_smx_read:
+    ID = Intrinsic::riscv_smx_read;
+    IntrinsicTypes = {ResultType};
+    break;
   case RISCV::BI__builtin_riscv_smx_step:
     ID = Intrinsic::riscv_smx_step;
     IntrinsicTypes = {ResultType};
     break;
-  case RISCV::BI__builtin_riscv_smx_step_bl:
-    ID = Intrinsic::riscv_smx_step_bl;
-    IntrinsicTypes = {ResultType};
-    break;
-  case RISCV::BI__builtin_riscv_smx_step_j:
-    ID = Intrinsic::riscv_smx_step_j;
-    IntrinsicTypes = {ResultType};
-    break;
-  case RISCV::BI__builtin_riscv_smx_bnl:
-    ID = Intrinsic::riscv_smx_bnl;
-    IntrinsicTypes = {ResultType};
-    break;
-  case RISCV::BI__builtin_riscv_smx_b_cond:
-    ID = Intrinsic::riscv_smx_b_cond;
+  case RISCV::BI__builtin_riscv_smx_stop_val:
+    ID = Intrinsic::riscv_smx_stop_val;
     IntrinsicTypes = {ResultType};
     break;
 
