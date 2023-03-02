@@ -140,13 +140,6 @@ public:
       return true;
     }
 
-    if (Inst.getOpcode() == RISCV::SMX_STEP_BL ||
-        Inst.getOpcode() == RISCV::SMX_STEP_J ||
-        Inst.getOpcode() == RISCV::SMX_BNL) {
-      Target = Addr + Inst.getOperand(2).getImm();
-      return true;
-    }
-
     return false;
   }
 };
