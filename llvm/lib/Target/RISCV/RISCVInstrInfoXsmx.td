@@ -23,9 +23,11 @@ def SDT_RISCVSMXTruncStore : SDTypeProfile<0, 3, [SDTCisVT<0, XLenVT>,
                                                   SDTCisVT<1, XLenVT>,
                                                   SDTCisVT<2, XLenVT>]>;
 
-def SDT_RISCVSMXBranch : SDTypeProfile<1, 2, [SDTCisVT<0, XLenVT>,
-                                              SDTCisVT<1, XLenVT>,
-                                              SDTCisVT<2, OtherVT>]>;
+def SDT_RISCVSMXStreamOp : SDTypeProfile<1, 1, [SDTCisVT<0, XLenVT>,
+                                                SDTCisVT<1, XLenVT>]>;
+
+def SDT_RISCVSMXBranch : SDTypeProfile<0, 2, [SDTCisVT<0, XLenVT>,
+                                              SDTCisVT<1, OtherVT>]>;
 
 multiclass RISCVSMXExtLoad<string ext, int len> {
   defvar node_name = "smx_" # NAME # "_load_i" # len;
@@ -52,12 +54,26 @@ foreach l = [8, 16, 32] in {
   defm "" : RISCVSMXTruncStore<l>;
 }
 
-def smx_step_bl : SDNode<"RISCVISD::SMX_STEP_BL", SDT_RISCVSMXBranch,
-                         [SDNPHasChain]>;
-def smx_step_j  : SDNode<"RISCVISD::SMX_STEP_J", SDT_RISCVSMXBranch,
-                         [SDNPHasChain]>;
-def smx_bnl     : SDNode<"RISCVISD::SMX_BNL", SDT_RISCVSMXBranch,
-                         [SDNPHasChain]>;
+def smx_fuse_read : SDNode<"RISCVISD::SMX_FUSE_READ", SDT_RISCVSMXStreamOp,
+                           [SDNPHasChain]>;
+def smx_fuse_step : SDNode<"RISCVISD::SMX_FUSE_STEP", SDT_RISCVSMXStreamOp,
+                           [SDNPHasChain]>;
+def smx_fuse_bl   : SDNode<"RISCVISD::SMX_FUSE_BL", SDT_RISCVSMXBranch,
+                           [SDNPHasChain]>;
+def smx_fuse_zbl  : SDNode<"RISCVISD::SMX_FUSE_ZBL", SDT_RISCVSMXBranch,
+                           [SDNPHasChain]>;
+def smx_zbl       : SDNode<"RISCVISD::SMX_ZBL", SDT_RISCVSMXBranch,
+                           [SDNPHasChain]>;
+def smx_fuse_j    : SDNode<"RISCVISD::SMX_FUSE_J", SDT_RISCVSMXBranch,
+                           [SDNPHasChain]>;
+def smx_fuse_zj   : SDNode<"RISCVISD::SMX_FUSE_ZJ", SDT_RISCVSMXBranch,
+                           [SDNPHasChain]>;
+def smx_fuse_bnl  : SDNode<"RISCVISD::SMX_FUSE_BNL", SDT_RISCVSMXBranch,
+                           [SDNPHasChain]>;
+def smx_fuse_zbnl : SDNode<"RISCVISD::SMX_FUSE_ZBNL", SDT_RISCVSMXBranch,
+                           [SDNPHasChain]>;
+def smx_zbnl      : SDNode<"RISCVISD::SMX_ZBNL", SDT_RISCVSMXBranch,
+                           [SDNPHasChain]>;
 
 //===----------------------------------------------------------------------===//
 // Operand definitions
@@ -174,32 +190,26 @@ let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in {
                 (outs GPR:$rd), (ins smx_stream_arg:$rs1, simm12:$imm12),
                 opcodestr, "$rd, $rs1, $imm12">;
 
-  class SMXInstBranch<bits<3> funct3, string opcodestr>
-      : RVInst<(outs GPR:$rd), (ins smx_stream_arg:$stream, simm13_lsb0:$imm12),
-               opcodestr, "$rd, $stream, $imm12", [], InstFormatSMXB> {
-    bits<12> imm12;
-    bits<5> stream;
-    bits<5> rd;
-
-    let Inst{31-20} = imm12;
-    let Inst{19-15} = stream;
-    let Inst{14-12} = funct3;
-    let Inst{11-7} = rd;
-    let Opcode = OPC_CUSTOM_1.Value;
-  }
-
 } // hasSideEffects = 1, mayLoad = 0, mayStore = 0
 
-let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
-class SMXInstLoad<RegisterClass rd, bits<2> width, bit unsigned,
-                  bits<3> funct3, string opcodestr>
-    : RVInstI<funct3, OPC_CUSTOM_0,
-              (outs rd:$rd), (ins smx_stream_arg:$rs1, smx_sel_arg:$selector),
-              opcodestr, "$rd, $rs1, $selector"> {
-  bits<7> selector;
+let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in {
 
-  let imm12 = {selector, 0b00, unsigned, width};
-}
+  class SMXInstLoad<RegisterClass rd, bits<2> width, bit unsigned,
+                    bits<3> funct3, string opcodestr>
+      : RVInstI<funct3, OPC_CUSTOM_0,
+                (outs rd:$rd), (ins smx_stream_arg:$rs1, smx_sel_arg:$selector),
+                opcodestr, "$rd, $rs1, $selector"> {
+    bits<7> selector;
+
+    let imm12 = {selector, 0b00, unsigned, width};
+  }
+
+  class SMXInstRead<bits<3> funct3, string opcodestr>
+      : RVInstI<funct3, OPC_CUSTOM_1,
+                (outs GPR:$rd), (ins smx_stream_arg:$rs1, simm12:$imm12),
+                opcodestr, "$rd, $rs1, $imm12">;
+
+} // hasSideEffects = 0, mayLoad = 1, mayStore = 0
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 1 in
 class SMXInstStore<RegisterClass rs2, bits<2> width,
@@ -211,6 +221,38 @@ class SMXInstStore<RegisterClass rs2, bits<2> width,
 
   let imm12 = {selector, 0b000, width};
 }
+
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0,
+    isBranch = 1, isTerminator = 1 in
+class SMXInstBranch<bits<3> funct3, string opcodestr>
+    : RVInst<(outs GPR:$rd), (ins smx_stream_arg:$stream, simm13_lsb0:$imm12),
+             opcodestr, "$rd, $stream, $imm12", [], InstFormatSMXB> {
+  bits<12> imm12;
+  bits<5> stream;
+  bits<5> rd;
+
+  let Inst{31-20} = imm12;
+  let Inst{19-15} = stream;
+  let Inst{14-12} = funct3;
+  let Inst{11-7} = rd;
+  let Opcode = OPC_CUSTOM_1.Value;
+
+  let isBranch = 1;
+  let isTerminator = 1;
+}
+
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0,
+    isBranch = 1, isTerminator = 1 in {
+  
+  class SMXInstStepBranch<bits<3> funct3, string opcodestr>
+      : SMXInstBranch<funct3, opcodestr>;
+
+  let isBarrier = 1 in
+  class SMXInstStepJump<bits<3> funct3, string opcodestr>
+      : SMXInstStepBranch<funct3, opcodestr>;
+
+} // hasSideEffects = 1, mayLoad = 0, mayStore = 0,
+  // isBranch = 1, isTerminator = 1
 
 //===----------------------------------------------------------------------===//
 // Instructions
@@ -235,10 +277,15 @@ let Predicates = [HasExtXsmx] in {
   def SMX_SB        : SMXInstStore   <GPR, 0b00,    0b101, "smx.sb">, Sched<[]>;
   def SMX_SH        : SMXInstStore   <GPR, 0b01,    0b101, "smx.sh">, Sched<[]>;
   def SMX_SW        : SMXInstStore   <GPR, 0b10,    0b101, "smx.sw">, Sched<[]>;
-  def SMX_STEP      : SMXInstStep    <              0b000, "smx.step">, Sched<[]>;
-  def SMX_STEP_BL   : SMXInstBranch  <              0b001, "smx.step.bl">, Sched<[]>;
-  def SMX_STEP_J    : SMXInstBranch  <              0b010, "smx.step.j">, Sched<[]>;
-  def SMX_BNL       : SMXInstBranch  <              0b011, "smx.bnl">, Sched<[]>;
+} // Predicates = [HasExtXsmx]
+
+let Predicates = [HasExtXsmx] in {
+  def SMX_READ    : SMXInstRead       <0b000, "smx.read">, Sched<[]>;
+  def SMX_STEP    : SMXInstStep       <0b001, "smx.step">, Sched<[]>;
+  def SMX_BL      : SMXInstBranch     <0b010, "smx.bl">, Sched<[]>;
+  def SMX_BNL     : SMXInstBranch     <0b011, "smx.bnl">, Sched<[]>;
+  def SMX_STEP_BL : SMXInstStepBranch <0b100, "smx.step.bl">, Sched<[]>;
+  def SMX_STEP_J  : SMXInstStepJump   <0b101, "smx.step.j">, Sched<[]>;
 } // Predicates = [HasExtXsmx]
 
 let Predicates = [HasExtXsmx, IsRV64] in {
@@ -330,6 +377,13 @@ let Predicates = [HasExtXsmx] in {
   def : SMXStorePat<smx_truncstorei8, SMX_SB>;
   def : SMXStorePat<smx_truncstorei16, SMX_SH>;
 
+  /// Induction variable stream reads
+
+  def : Pat<(int_riscv_smx_read smx_stream_arg:$rs1),
+            (SMX_READ smx_stream_arg:$rs1, 0)>;
+  def : Pat<(add (int_riscv_smx_read smx_stream_arg:$rs1), simm12:$imm12),
+            (SMX_READ smx_stream_arg:$rs1, simm12:$imm12)>;
+
   /// Induction variable stream steps
 
   def : Pat<(int_riscv_smx_step smx_stream_arg:$rs1),
@@ -337,14 +391,58 @@ let Predicates = [HasExtXsmx] in {
   def : Pat<(add (int_riscv_smx_step smx_stream_arg:$rs1), simm12:$imm12),
             (SMX_STEP smx_stream_arg:$rs1, simm12:$imm12)>;
 
-  /// Branch instructions
+  /// Branches without return value.
 
-  def : Pat<(smx_step_bl smx_stream_arg:$stream, bb:$imm12),
-            (SMX_STEP_BL smx_stream_arg:$stream, simm13_lsb0:$imm12)>;
-  def : Pat<(smx_step_j smx_stream_arg:$stream, bb:$imm12),
-            (SMX_STEP_J smx_stream_arg:$stream, simm13_lsb0:$imm12)>;
-  def : Pat<(smx_bnl smx_stream_arg:$stream, bb:$imm12),
-            (SMX_BNL smx_stream_arg:$stream, simm13_lsb0:$imm12)>;
+  let isBranch = 1, isTerminator = 1 in {
+    def SMX_ZBL  : Pseudo<(outs),
+                          (ins smx_stream_arg:$stream, simm13_lsb0:$target), []>;
+    def SMX_ZBNL : Pseudo<(outs),
+                          (ins smx_stream_arg:$stream, simm13_lsb0:$target), []>;
+  } // isBranch = 1, isTerminator = 1
+
+  def : Pat<(smx_zbl smx_stream_arg:$stream, bb:$target),
+            (SMX_ZBL smx_stream_arg:$stream, simm13_lsb0:$target)>;
+  def : Pat<(smx_zbnl smx_stream_arg:$stream, bb:$target),
+            (SMX_ZBNL smx_stream_arg:$stream, simm13_lsb0:$target)>;
+
+  /// Fused steps/reads/branches, for constructing SMX branch operations.
+
+  let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
+  def SMX_FUSE_READ : Pseudo<(outs GPR:$rd), (ins smx_stream_arg:$stream), []>;
+
+  let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
+  def SMX_FUSE_STEP : Pseudo<(outs GPR:$rd), (ins smx_stream_arg:$stream), []>;
+
+  def : Pat<(smx_fuse_read smx_stream_arg:$stream),
+            (SMX_FUSE_READ smx_stream_arg:$stream)>;
+  def : Pat<(smx_fuse_step smx_stream_arg:$stream),
+            (SMX_FUSE_STEP smx_stream_arg:$stream)>;
+
+  let isBranch = 1, isTerminator = 1 in {
+    def SMX_FUSE_BL   : Pseudo<(outs), (ins GPR:$rs, simm13_lsb0:$target), []>;
+    def SMX_FUSE_ZBL  : Pseudo<(outs), (ins GPR:$rs, simm13_lsb0:$target), []>;
+    def SMX_FUSE_BNL  : Pseudo<(outs), (ins GPR:$rs, simm13_lsb0:$target), []>;
+    def SMX_FUSE_ZBNL : Pseudo<(outs), (ins GPR:$rs, simm13_lsb0:$target), []>;
+ } // isBranch = 1, isTerminator = 1
+
+  def : Pat<(smx_fuse_bl GPR:$rs, bb:$target),
+            (SMX_FUSE_BL GPR:$rs, simm13_lsb0:$target)>;
+  def : Pat<(smx_fuse_zbl GPR:$rs, bb:$target),
+            (SMX_FUSE_ZBL GPR:$rs, simm13_lsb0:$target)>;
+  def : Pat<(smx_fuse_bnl GPR:$rs, bb:$target),
+            (SMX_FUSE_BNL GPR:$rs, simm13_lsb0:$target)>;
+  def : Pat<(smx_fuse_zbnl GPR:$rs, bb:$target),
+            (SMX_FUSE_ZBNL GPR:$rs, simm13_lsb0:$target)>;
+
+  let isBarrier = 1, isBranch = 1, isTerminator = 1 in {
+    def SMX_FUSE_J  : Pseudo<(outs), (ins GPR:$rs, simm13_lsb0:$target), []>;
+    def SMX_FUSE_ZJ : Pseudo<(outs), (ins GPR:$rs, simm13_lsb0:$target), []>;
+  } // isBarrier = 1, isBranch = 1, isTerminator = 1
+
+  def : Pat<(smx_fuse_j GPR:$rs, bb:$target),
+            (SMX_FUSE_J GPR:$rs, simm13_lsb0:$target)>;
+  def : Pat<(smx_fuse_zj GPR:$rs, bb:$target),
+            (SMX_FUSE_ZJ GPR:$rs, simm13_lsb0:$target)>;
 
 } // Predicates = [HasExtXsmx]
 
