@@ -246,6 +246,9 @@ void RISCVPassConfig::addPreEmitPass2() {
   // possibility for other passes to break the requirements for forward
   // progress in the LR/SC block.
   addPass(createRISCVExpandAtomicPseudoPass());
+  // Finalises SMX branches. This replaces pseudo instructions with real
+  // instructions.
+  addPass(createRISCVFinalizeSMXBranchPass());
 }
 
 void RISCVPassConfig::addMachineSSAOptimization() {
