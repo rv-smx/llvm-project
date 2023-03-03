@@ -186,6 +186,7 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::BR_JT, MVT::Other, Expand);
   setOperationAction(ISD::BR_CC, XLenVT, Expand);
   setOperationAction(ISD::BRCOND, MVT::Other, Custom);
+  setOperationAction(ISD::BR, MVT::Other, Custom);
   setOperationAction(ISD::SELECT_CC, XLenVT, Expand);
 
   setOperationAction({ISD::STACKSAVE, ISD::STACKRESTORE}, MVT::Other, Expand);
@@ -3120,6 +3121,8 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
     return lowerSELECT(Op, DAG);
   case ISD::BRCOND:
     return lowerBRCOND(Op, DAG);
+  case ISD::BR:
+    return lowerBR(Op, DAG);
   case ISD::VASTART:
     return lowerVASTART(Op, DAG);
   case ISD::FRAMEADDR:
@@ -3957,103 +3960,114 @@ SDValue RISCVTargetLowering::lowerSELECT(SDValue Op, SelectionDAG &DAG) const {
   return DAG.getNode(RISCVISD::SELECT_CC, DL, Op.getValueType(), Ops);
 }
 
+static bool isChainConnected(SDValue Chain, SDValue ChainOrTF) {
+  if (ChainOrTF.getOpcode() == ISD::TokenFactor) {
+    for (unsigned Idx = 0; Idx < ChainOrTF.getNumOperands(); ++Idx) {
+      if (isChainConnected(Chain, ChainOrTF.getOperand(Idx)))
+        return true;
+    }
+    return false;
+  } else {
+    return Chain == ChainOrTF;
+  }
+}
+
 static SDValue lowerSMXBranch(SDValue Op, SelectionDAG &DAG, SDLoc DL,
-                              MVT XLenVT, SDValue LHS, SDValue RHS) {
-  unsigned LhsIntNo = LHS.getConstantOperandVal(1);
-  unsigned RhsIntNo = RHS.getConstantOperandVal(1);
-  if (LhsIntNo == Intrinsic::riscv_smx_b_cond) {
+                              MVT XLenVT, bool IsEq, SDValue LHS, SDValue RHS) {
+  // Make sure there is a `smx_stop_val` and it's the RHS.
+  if (LHS.getOpcode() == ISD::INTRINSIC_W_CHAIN &&
+      LHS.getConstantOperandVal(1) == Intrinsic::riscv_smx_stop_val) {
     std::swap(LHS, RHS);
-    std::swap(LhsIntNo, RhsIntNo);
   }
-  if (RhsIntNo != Intrinsic::riscv_smx_b_cond)
+  if (RHS.getOpcode() != ISD::INTRINSIC_W_CHAIN ||
+      RHS.getConstantOperandVal(1) != Intrinsic::riscv_smx_stop_val ||
+      !RHS.getValue(0).hasOneUse())
     return SDValue();
 
-  // Get opcode of SMX branch SD node.
-  unsigned Opcode;
-  switch (LhsIntNo) {
-  default:
-    return SDValue();
-  case Intrinsic::riscv_smx_step_bl:
-    Opcode = RISCVISD::SMX_STEP_BL;
-    break;
-  case Intrinsic::riscv_smx_step_j:
-    Opcode = RISCVISD::SMX_STEP_J;
-    break;
-  case Intrinsic::riscv_smx_bnl:
-    Opcode = RISCVISD::SMX_BNL;
-    break;
-  }
-
-  // Update chain.
-  SDValue LhsInChain = LHS.getOperand(0);
-  SDValue LhsOutChain = LHS.getValue(1);
-  SDValue RhsInChain = RHS.getOperand(0);
-  SDValue RhsOutChain = RHS.getValue(1);
-  if (LhsOutChain == RhsInChain) {
-    DAG.ReplaceAllUsesOfValueWith(RhsOutChain, LhsInChain);
-  } else if (RhsOutChain == LhsInChain) {
-    DAG.ReplaceAllUsesOfValueWith(LhsOutChain, RhsInChain);
+  // Determine the kind of LHS.
+  enum { READ, STEP, EQ_ZERO, NE_ZERO } LhsKind;
+  if (LHS.getOpcode() == ISD::INTRINSIC_W_CHAIN) {
+    switch (LHS.getConstantOperandVal(1)) {
+    case Intrinsic::riscv_smx_read:
+      LhsKind = READ;
+      break;
+    case Intrinsic::riscv_smx_step:
+      LhsKind = STEP;
+      break;
+    default:
+      return SDValue();
+    }
+    if (LHS.getConstantOperandVal(2) != RHS.getConstantOperandVal(2))
+      return SDValue();
+  } else if (isNullConstant(LHS)) {
+    LhsKind = IsEq ? EQ_ZERO : NE_ZERO;
   } else {
     return SDValue();
   }
 
-  // Create SMX branch node.
-  SDValue Branch =
-      DAG.getNode(Opcode, DL, {XLenVT, Op.getValueType()},
-                  {Op.getOperand(0), LHS.getOperand(2), Op.getOperand(2)});
-
-  // Update chains.
-  SDValue Result = LHS.getValue(0);
-  SDValue Chain = Branch.getValue(1);
-  SmallVector<SDValue, 1> Chains;
-  for (auto UI = Result.getNode()->use_begin();
-       UI != Result.getNode()->use_end(); ++UI) {
-    SDUse &Use = UI.getUse();
-    if (Use.getResNo() != Result.getResNo())
-      continue;
-
-    // Make sure there is a chain in the user.
-    SDNode *User = *UI;
-    if (User->getNumOperands() == 0)
-      continue;
-    SDValue InChain = User->getOperand(0);
-    SDValue OutChain = SDValue(User, User->getNumValues() - 1);
-    if (InChain.getValueType() != MVT::Other ||
-        OutChain.getValueType() != MVT::Other)
-      continue;
-
-    // Take the user off the chain.
-    DAG.ReplaceAllUsesOfValueWith(OutChain, InChain);
-
-    // Recreate the user with new chain.
-    SmallVector<SDValue> Ops;
-    for (auto Op : User->op_values()) {
-      if (Ops.empty())
-        Ops.push_back(Chain);
-      else
-        Ops.push_back(Op);
-    }
-    SDValue Value =
-        DAG.getNode(User->getOpcode(), User,
-                    ArrayRef<EVT>(User->value_begin(), User->value_end()), Ops);
-
-    // Replace the user with the new one.
-    for (unsigned Idx = 0; Idx < User->getNumValues(); ++Idx) {
-      SDValue Result = Value.getValue(Idx);
-      if (Idx == User->getNumValues() - 1)
-        Chains.push_back(Result);
-      else
-        DAG.ReplaceAllUsesOfValueWith(SDValue(User, Idx), Result);
+  // Check if chains are connected.
+  bool LowerToFusedBr = false;
+  auto RhsInChain = RHS.getOperand(0), RhsOutChain = RHS.getValue(1);
+  auto BrInChain = Op.getOperand(0);
+  SDValue StreamOpInChain, StreamOpOutChain;
+  if (LhsKind == READ ||
+      (LhsKind == STEP && !IsEq)) { // Currently `step.bnl` is unsupported.
+    auto LhsInChain = LHS.getOperand(0), LhsOutChain = LHS.getValue(1);
+    bool IsRhsOutLhsInConn = isChainConnected(RhsOutChain, LhsInChain);
+    if (isChainConnected(LhsOutChain, RhsInChain) || IsRhsOutLhsInConn) {
+      if (IsRhsOutLhsInConn) {
+        StreamOpInChain = RhsInChain;
+        StreamOpOutChain = LhsOutChain;
+      } else {
+        StreamOpInChain = LhsInChain;
+        StreamOpOutChain = RhsOutChain;
+      }
+      if (isChainConnected(StreamOpOutChain, BrInChain))
+        LowerToFusedBr = true;
     }
   }
-  if (!Chains.empty()) {
-    Chain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other,
-                        ArrayRef<SDValue>(Chains));
-  }
+  if (!LowerToFusedBr && !isChainConnected(RhsOutChain, BrInChain))
+    return SDValue();
 
-  // Update result.
-  DAG.ReplaceAllUsesOfValueWith(Result, Branch.getValue(0));
-  return Chain;
+  // Replace read/step, stop_val and branch.
+  auto StreamId = RHS.getOperand(2);
+  if (LowerToFusedBr) {
+    // Create fused read/step.
+    auto StreamOp = DAG.getNode(
+        LhsKind == READ ? RISCVISD::SMX_FUSE_READ : RISCVISD::SMX_FUSE_STEP,
+        SDLoc(LHS), {XLenVT, Op.getValueType()}, {StreamOpInChain, StreamId});
+
+    // Replace the old one.
+    auto LhsValue = LHS.getValue(0);
+    bool IsZBr = LhsValue.hasOneUse();
+    DAG.ReplaceAllUsesOfValueWith(LhsValue, StreamOp.getValue(0));
+    DAG.ReplaceAllUsesOfValueWith(StreamOpOutChain, StreamOp.getValue(1));
+    if (StreamOpOutChain == BrInChain)
+      BrInChain = StreamOp.getValue(1);
+
+    // Create fused branch.
+    auto Opcode = IsEq
+                      ? IsZBr ? RISCVISD::SMX_FUSE_ZBNL : RISCVISD::SMX_FUSE_BNL
+                  : IsZBr ? RISCVISD::SMX_FUSE_ZBL
+                          : RISCVISD::SMX_FUSE_BL;
+    return DAG.getNode(Opcode, DL, Op.getValueType(), BrInChain,
+                       StreamOp.getValue(0), Op.getOperand(2));
+  } else {
+    // Detach RHS (the `stop_val`) from the chain.
+    DAG.ReplaceAllUsesOfValueWith(RhsOutChain, RhsInChain);
+    if (RhsOutChain == BrInChain)
+      BrInChain = RhsInChain;
+
+    // Create branch.
+    unsigned Opcode;
+    if (LhsKind == EQ_ZERO || (LhsKind != NE_ZERO && !IsEq)) {
+      Opcode = RISCVISD::SMX_ZBL;
+    } else {
+      Opcode = RISCVISD::SMX_ZBNL;
+    }
+    return DAG.getNode(Opcode, DL, Op.getValueType(), BrInChain, StreamId,
+                       Op.getOperand(2));
+  }
 }
 
 SDValue RISCVTargetLowering::lowerBRCOND(SDValue Op, SelectionDAG &DAG) const {
@@ -4068,9 +4082,11 @@ SDValue RISCVTargetLowering::lowerBRCOND(SDValue Op, SelectionDAG &DAG) const {
     ISD::CondCode CCVal = cast<CondCodeSDNode>(CondV.getOperand(2))->get();
 
     // Check if is a SMX branch.
-    if (CCVal == ISD::SETEQ && LHS.getOpcode() == ISD::INTRINSIC_W_CHAIN &&
-        RHS.getOpcode() == ISD::INTRINSIC_W_CHAIN) {
-      if (SDValue Result = lowerSMXBranch(Op, DAG, DL, XLenVT, LHS, RHS))
+    if ((CCVal == ISD::SETEQ || CCVal == ISD::SETNE) &&
+        (LHS.getOpcode() == ISD::INTRINSIC_W_CHAIN ||
+         RHS.getOpcode() == ISD::INTRINSIC_W_CHAIN)) {
+      if (SDValue Result = lowerSMXBranch(Op, DAG, DL, XLenVT,
+                                          CCVal == ISD::SETEQ, LHS, RHS))
         return Result;
     }
 
@@ -4084,6 +4100,48 @@ SDValue RISCVTargetLowering::lowerBRCOND(SDValue Op, SelectionDAG &DAG) const {
   return DAG.getNode(RISCVISD::BR_CC, DL, Op.getValueType(), Op.getOperand(0),
                      CondV, DAG.getConstant(0, DL, XLenVT),
                      DAG.getCondCode(ISD::SETNE), Op.getOperand(2));
+}
+
+SDValue RISCVTargetLowering::lowerBR(SDValue Op, SelectionDAG &DAG) const {
+  auto InChain = Op.getOperand(0), Target = Op.getOperand(1);
+
+  // Try to find the `step` intrinsic.
+  SDValue Step;
+  auto isStep = [&Step](SDValue V) {
+    if (V.getOpcode() == ISD::INTRINSIC_W_CHAIN &&
+        V.getConstantOperandVal(1) == Intrinsic::riscv_smx_step) {
+      Step = V;
+      return true;
+    }
+    return false;
+  };
+  if (!isStep(InChain) && InChain.getOpcode() == ISD::TokenFactor) {
+    for (unsigned Idx = 0; Idx < InChain.getNumOperands(); ++Idx) {
+      if (isStep(InChain.getOperand(Idx)))
+        break;
+    }
+  }
+  if (!Step)
+    return SDValue();
+
+  // Create fused step.
+  auto XLenVT = Subtarget.getXLenVT();
+  auto FusedStep = DAG.getNode(RISCVISD::SMX_FUSE_STEP, SDLoc(Step),
+                               {XLenVT, Op.getValueType()},
+                               {Step.getOperand(0), Step.getOperand(2)});
+
+  // Replace the old one.
+  auto StepValue = Step.getValue(0);
+  bool IsZJ = StepValue.use_empty();
+  DAG.ReplaceAllUsesOfValueWith(StepValue, FusedStep.getValue(0));
+  DAG.ReplaceAllUsesOfValueWith(Step, FusedStep.getValue(1));
+  if (InChain == Step)
+    InChain = FusedStep.getValue(1);
+
+  // Create fused jump.
+  return DAG.getNode(IsZJ ? RISCVISD::SMX_FUSE_ZJ : RISCVISD::SMX_FUSE_J,
+                     SDLoc(Op), Op.getValueType(), InChain,
+                     FusedStep.getValue(0), Target);
 }
 
 SDValue RISCVTargetLowering::lowerVASTART(SDValue Op, SelectionDAG &DAG) const {
@@ -12102,9 +12160,16 @@ const char *RISCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(SMX_TRUNC_STORE_I8)
   NODE_NAME_CASE(SMX_TRUNC_STORE_I16)
   NODE_NAME_CASE(SMX_TRUNC_STORE_I32)
-  NODE_NAME_CASE(SMX_STEP_BL)
-  NODE_NAME_CASE(SMX_STEP_J)
-  NODE_NAME_CASE(SMX_BNL)
+  NODE_NAME_CASE(SMX_FUSE_READ)
+  NODE_NAME_CASE(SMX_FUSE_STEP)
+  NODE_NAME_CASE(SMX_FUSE_BL)
+  NODE_NAME_CASE(SMX_FUSE_ZBL)
+  NODE_NAME_CASE(SMX_ZBL)
+  NODE_NAME_CASE(SMX_FUSE_J)
+  NODE_NAME_CASE(SMX_FUSE_ZJ)
+  NODE_NAME_CASE(SMX_FUSE_BNL)
+  NODE_NAME_CASE(SMX_FUSE_ZBNL)
+  NODE_NAME_CASE(SMX_ZBNL)
   }
   // clang-format on
   return nullptr;

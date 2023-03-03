@@ -339,9 +339,16 @@ enum NodeType : unsigned {
   SMX_TRUNC_STORE_I16,
   SMX_TRUNC_STORE_I32,
   // SMX branch operations.
-  SMX_STEP_BL,
-  SMX_STEP_J,
-  SMX_BNL,
+  SMX_FUSE_READ,
+  SMX_FUSE_STEP,
+  SMX_FUSE_BL,
+  SMX_FUSE_ZBL,
+  SMX_ZBL,
+  SMX_FUSE_J,
+  SMX_FUSE_ZJ,
+  SMX_FUSE_BNL,
+  SMX_FUSE_ZBNL,
+  SMX_ZBNL,
 
   // FP to 32 bit int conversions for RV64. These are used to keep track of the
   // result being sign extended to 64 bit. These saturate out of range inputs.
@@ -652,6 +659,7 @@ private:
   SDValue lowerGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerSELECT(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerBRCOND(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerBR(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerVASTART(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFRAMEADDR(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerRETURNADDR(SDValue Op, SelectionDAG &DAG) const;
