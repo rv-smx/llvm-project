@@ -60,17 +60,17 @@ def smx_fuse_step : SDNode<"RISCVISD::SMX_FUSE_STEP", SDT_RISCVSMXStreamOp,
                            [SDNPHasChain]>;
 def smx_fuse_bl   : SDNode<"RISCVISD::SMX_FUSE_BL", SDT_RISCVSMXBranch,
                            [SDNPHasChain]>;
-def smx_fuse_zbl  : SDNode<"RISCVISD::SMX_FUSE_ZBL", SDT_RISCVSMXBranch,
+def smx_step_zbl  : SDNode<"RISCVISD::SMX_STEP_ZBL", SDT_RISCVSMXBranch,
                            [SDNPHasChain]>;
 def smx_zbl       : SDNode<"RISCVISD::SMX_ZBL", SDT_RISCVSMXBranch,
                            [SDNPHasChain]>;
 def smx_fuse_j    : SDNode<"RISCVISD::SMX_FUSE_J", SDT_RISCVSMXBranch,
                            [SDNPHasChain]>;
-def smx_fuse_zj   : SDNode<"RISCVISD::SMX_FUSE_ZJ", SDT_RISCVSMXBranch,
+def smx_step_zj   : SDNode<"RISCVISD::SMX_STEP_ZJ", SDT_RISCVSMXBranch,
                            [SDNPHasChain]>;
 def smx_fuse_bnl  : SDNode<"RISCVISD::SMX_FUSE_BNL", SDT_RISCVSMXBranch,
                            [SDNPHasChain]>;
-def smx_fuse_zbnl : SDNode<"RISCVISD::SMX_FUSE_ZBNL", SDT_RISCVSMXBranch,
+def smx_step_zbnl : SDNode<"RISCVISD::SMX_STEP_ZBNL", SDT_RISCVSMXBranch,
                            [SDNPHasChain]>;
 def smx_zbnl      : SDNode<"RISCVISD::SMX_ZBNL", SDT_RISCVSMXBranch,
                            [SDNPHasChain]>;
@@ -280,12 +280,13 @@ let Predicates = [HasExtXsmx] in {
 } // Predicates = [HasExtXsmx]
 
 let Predicates = [HasExtXsmx] in {
-  def SMX_READ    : SMXInstRead       <0b000, "smx.read">, Sched<[]>;
-  def SMX_STEP    : SMXInstStep       <0b001, "smx.step">, Sched<[]>;
-  def SMX_BL      : SMXInstBranch     <0b010, "smx.bl">, Sched<[]>;
-  def SMX_BNL     : SMXInstBranch     <0b011, "smx.bnl">, Sched<[]>;
-  def SMX_STEP_BL : SMXInstStepBranch <0b100, "smx.step.bl">, Sched<[]>;
-  def SMX_STEP_J  : SMXInstStepJump   <0b101, "smx.step.j">, Sched<[]>;
+  def SMX_READ     : SMXInstRead       <0b000, "smx.read">, Sched<[]>;
+  def SMX_STEP     : SMXInstStep       <0b001, "smx.step">, Sched<[]>;
+  def SMX_BL       : SMXInstBranch     <0b010, "smx.bl">, Sched<[]>;
+  def SMX_BNL      : SMXInstBranch     <0b011, "smx.bnl">, Sched<[]>;
+  def SMX_STEP_BL  : SMXInstStepBranch <0b100, "smx.step.bl">, Sched<[]>;
+  def SMX_STEP_BNL : SMXInstStepBranch <0b101, "smx.step.bnl">, Sched<[]>;
+  def SMX_STEP_J   : SMXInstStepJump   <0b110, "smx.step.j">, Sched<[]>;
 } // Predicates = [HasExtXsmx]
 
 let Predicates = [HasExtXsmx, IsRV64] in {
@@ -394,10 +395,10 @@ let Predicates = [HasExtXsmx] in {
   /// Branches without return value.
 
   let isBranch = 1, isTerminator = 1 in {
-    def SMX_ZBL  : Pseudo<(outs),
-                          (ins smx_stream_arg:$stream, simm13_lsb0:$target), []>;
-    def SMX_ZBNL : Pseudo<(outs),
-                          (ins smx_stream_arg:$stream, simm13_lsb0:$target), []>;
+    def SMX_ZBL
+        : Pseudo<(outs), (ins smx_stream_arg:$stream, simm13_lsb0:$target), []>;
+    def SMX_ZBNL
+        : Pseudo<(outs), (ins smx_stream_arg:$stream, simm13_lsb0:$target), []>;
   } // isBranch = 1, isTerminator = 1
 
   def : Pat<(smx_zbl smx_stream_arg:$stream, bb:$target),
@@ -419,30 +420,36 @@ let Predicates = [HasExtXsmx] in {
             (SMX_FUSE_STEP smx_stream_arg:$stream)>;
 
   let isBranch = 1, isTerminator = 1 in {
-    def SMX_FUSE_BL   : Pseudo<(outs), (ins GPR:$rs, simm13_lsb0:$target), []>;
-    def SMX_FUSE_ZBL  : Pseudo<(outs), (ins GPR:$rs, simm13_lsb0:$target), []>;
-    def SMX_FUSE_BNL  : Pseudo<(outs), (ins GPR:$rs, simm13_lsb0:$target), []>;
-    def SMX_FUSE_ZBNL : Pseudo<(outs), (ins GPR:$rs, simm13_lsb0:$target), []>;
+    def SMX_FUSE_BL
+        : Pseudo<(outs), (ins smx_stream_arg:$stream, simm13_lsb0:$target), []>;
+    def SMX_STEP_ZBL
+        : Pseudo<(outs), (ins smx_stream_arg:$stream, simm13_lsb0:$target), []>;
+    def SMX_FUSE_BNL
+        : Pseudo<(outs), (ins smx_stream_arg:$stream, simm13_lsb0:$target), []>;
+    def SMX_STEP_ZBNL
+        : Pseudo<(outs), (ins smx_stream_arg:$stream, simm13_lsb0:$target), []>;
  } // isBranch = 1, isTerminator = 1
 
-  def : Pat<(smx_fuse_bl GPR:$rs, bb:$target),
-            (SMX_FUSE_BL GPR:$rs, simm13_lsb0:$target)>;
-  def : Pat<(smx_fuse_zbl GPR:$rs, bb:$target),
-            (SMX_FUSE_ZBL GPR:$rs, simm13_lsb0:$target)>;
-  def : Pat<(smx_fuse_bnl GPR:$rs, bb:$target),
-            (SMX_FUSE_BNL GPR:$rs, simm13_lsb0:$target)>;
-  def : Pat<(smx_fuse_zbnl GPR:$rs, bb:$target),
-            (SMX_FUSE_ZBNL GPR:$rs, simm13_lsb0:$target)>;
+  def : Pat<(smx_fuse_bl smx_stream_arg:$stream, bb:$target),
+            (SMX_FUSE_BL smx_stream_arg:$stream, simm13_lsb0:$target)>;
+  def : Pat<(smx_step_zbl smx_stream_arg:$stream, bb:$target),
+            (SMX_STEP_ZBL smx_stream_arg:$stream, simm13_lsb0:$target)>;
+  def : Pat<(smx_fuse_bnl smx_stream_arg:$stream, bb:$target),
+            (SMX_FUSE_BNL smx_stream_arg:$stream, simm13_lsb0:$target)>;
+  def : Pat<(smx_step_zbnl smx_stream_arg:$stream, bb:$target),
+            (SMX_STEP_ZBNL smx_stream_arg:$stream, simm13_lsb0:$target)>;
 
   let isBarrier = 1, isBranch = 1, isTerminator = 1 in {
-    def SMX_FUSE_J  : Pseudo<(outs), (ins GPR:$rs, simm13_lsb0:$target), []>;
-    def SMX_FUSE_ZJ : Pseudo<(outs), (ins GPR:$rs, simm13_lsb0:$target), []>;
+    def SMX_FUSE_J
+        : Pseudo<(outs), (ins smx_stream_arg:$stream, simm13_lsb0:$target), []>;
+    def SMX_STEP_ZJ
+        : Pseudo<(outs), (ins smx_stream_arg:$stream, simm13_lsb0:$target), []>;
   } // isBarrier = 1, isBranch = 1, isTerminator = 1
 
-  def : Pat<(smx_fuse_j GPR:$rs, bb:$target),
-            (SMX_FUSE_J GPR:$rs, simm13_lsb0:$target)>;
-  def : Pat<(smx_fuse_zj GPR:$rs, bb:$target),
-            (SMX_FUSE_ZJ GPR:$rs, simm13_lsb0:$target)>;
+  def : Pat<(smx_fuse_j smx_stream_arg:$stream, bb:$target),
+            (SMX_FUSE_J smx_stream_arg:$stream, simm13_lsb0:$target)>;
+  def : Pat<(smx_step_zj smx_stream_arg:$stream, bb:$target),
+            (SMX_STEP_ZJ smx_stream_arg:$stream, simm13_lsb0:$target)>;
 
 } // Predicates = [HasExtXsmx]
 

@@ -342,12 +342,12 @@ enum NodeType : unsigned {
   SMX_FUSE_READ,
   SMX_FUSE_STEP,
   SMX_FUSE_BL,
-  SMX_FUSE_ZBL,
+  SMX_STEP_ZBL,
   SMX_ZBL,
   SMX_FUSE_J,
-  SMX_FUSE_ZJ,
+  SMX_STEP_ZJ,
   SMX_FUSE_BNL,
-  SMX_FUSE_ZBNL,
+  SMX_STEP_ZBNL,
   SMX_ZBNL,
 
   // FP to 32 bit int conversions for RV64. These are used to keep track of the

@@ -4010,8 +4010,7 @@ static SDValue lowerSMXBranch(SDValue Op, SelectionDAG &DAG, SDLoc DL,
   auto RhsInChain = RHS.getOperand(0), RhsOutChain = RHS.getValue(1);
   auto BrInChain = Op.getOperand(0);
   SDValue StreamOpInChain, StreamOpOutChain;
-  if (LhsKind == READ ||
-      (LhsKind == STEP && !IsEq)) { // Currently `step.bnl` is unsupported.
+  if (LhsKind == READ || LhsKind == STEP) {
     auto LhsInChain = LHS.getOperand(0), LhsOutChain = LHS.getValue(1);
     bool IsRhsOutLhsInConn = isChainConnected(RhsOutChain, LhsInChain);
     if (isChainConnected(LhsOutChain, RhsInChain) || IsRhsOutLhsInConn) {
@@ -4032,26 +4031,36 @@ static SDValue lowerSMXBranch(SDValue Op, SelectionDAG &DAG, SDLoc DL,
   // Replace read/step, stop_val and branch.
   auto StreamId = RHS.getOperand(2);
   if (LowerToFusedBr) {
-    // Create fused read/step.
-    auto StreamOp = DAG.getNode(
-        LhsKind == READ ? RISCVISD::SMX_FUSE_READ : RISCVISD::SMX_FUSE_STEP,
-        SDLoc(LHS), {XLenVT, Op.getValueType()}, {StreamOpInChain, StreamId});
-
-    // Replace the old one.
+    // Check if should create fused read/step.
     auto LhsValue = LHS.getValue(0);
     bool IsZBr = LhsValue.hasOneUse();
-    DAG.ReplaceAllUsesOfValueWith(LhsValue, StreamOp.getValue(0));
-    DAG.ReplaceAllUsesOfValueWith(StreamOpOutChain, StreamOp.getValue(1));
-    if (StreamOpOutChain == BrInChain)
-      BrInChain = StreamOp.getValue(1);
+    if (!IsZBr) {
+      // Create fused read/step.
+      auto StreamOp = DAG.getNode(
+          LhsKind == READ ? RISCVISD::SMX_FUSE_READ : RISCVISD::SMX_FUSE_STEP,
+          SDLoc(LHS), {XLenVT, Op.getValueType()}, {StreamOpInChain, StreamId});
+
+      // Replace the old one.
+      DAG.ReplaceAllUsesOfValueWith(LhsValue, StreamOp.getValue(0));
+      DAG.ReplaceAllUsesOfValueWith(StreamOpOutChain, StreamOp.getValue(1));
+      if (StreamOpOutChain == BrInChain)
+        BrInChain = StreamOp.getValue(1);
+    } else {
+      // Detach LHS and RHS from the chain.
+      DAG.ReplaceAllUsesOfValueWith(StreamOpOutChain, StreamOpInChain);
+      if (StreamOpOutChain == BrInChain)
+        BrInChain = StreamOpInChain;
+    }
 
     // Create fused branch.
-    auto Opcode = IsEq
-                      ? IsZBr ? RISCVISD::SMX_FUSE_ZBNL : RISCVISD::SMX_FUSE_BNL
-                  : IsZBr ? RISCVISD::SMX_FUSE_ZBL
-                          : RISCVISD::SMX_FUSE_BL;
-    return DAG.getNode(Opcode, DL, Op.getValueType(), BrInChain,
-                       StreamOp.getValue(0), Op.getOperand(2));
+    auto Opcode =
+        IsEq    ? IsZBr ? LhsKind == STEP ? RISCVISD::SMX_STEP_ZBNL
+                                          : RISCVISD::SMX_ZBNL
+                        : RISCVISD::SMX_FUSE_BNL
+        : IsZBr ? LhsKind == STEP ? RISCVISD::SMX_STEP_ZBL : RISCVISD::SMX_ZBL
+                : RISCVISD::SMX_FUSE_BL;
+    return DAG.getNode(Opcode, DL, Op.getValueType(), BrInChain, StreamId,
+                       Op.getOperand(2));
   } else {
     // Detach RHS (the `stop_val`) from the chain.
     DAG.ReplaceAllUsesOfValueWith(RhsOutChain, RhsInChain);
@@ -4124,24 +4133,33 @@ SDValue RISCVTargetLowering::lowerBR(SDValue Op, SelectionDAG &DAG) const {
   if (!Step)
     return SDValue();
 
-  // Create fused step.
-  auto XLenVT = Subtarget.getXLenVT();
-  auto FusedStep = DAG.getNode(RISCVISD::SMX_FUSE_STEP, SDLoc(Step),
-                               {XLenVT, Op.getValueType()},
-                               {Step.getOperand(0), Step.getOperand(2)});
-
-  // Replace the old one.
+  // Check if should create fused step.
+  auto StreamId = Step.getOperand(2);
+  auto StepInChain = Step.getOperand(0);
   auto StepValue = Step.getValue(0);
   bool IsZJ = StepValue.use_empty();
-  DAG.ReplaceAllUsesOfValueWith(StepValue, FusedStep.getValue(0));
-  DAG.ReplaceAllUsesOfValueWith(Step, FusedStep.getValue(1));
-  if (InChain == Step)
-    InChain = FusedStep.getValue(1);
+  if (!IsZJ) {
+    // Create fused step.
+    auto XLenVT = Subtarget.getXLenVT();
+    auto FusedStep =
+        DAG.getNode(RISCVISD::SMX_FUSE_STEP, SDLoc(Step),
+                    {XLenVT, Op.getValueType()}, {StepInChain, StreamId});
+
+    // Replace the old one.
+    DAG.ReplaceAllUsesOfValueWith(StepValue, FusedStep.getValue(0));
+    DAG.ReplaceAllUsesOfValueWith(Step, FusedStep.getValue(1));
+    if (InChain == Step)
+      InChain = FusedStep.getValue(1);
+  } else {
+    // Detach step from the chain.
+    DAG.ReplaceAllUsesOfValueWith(Step, StepInChain);
+    if (InChain == Step)
+      InChain = StepInChain;
+  }
 
   // Create fused jump.
-  return DAG.getNode(IsZJ ? RISCVISD::SMX_FUSE_ZJ : RISCVISD::SMX_FUSE_J,
-                     SDLoc(Op), Op.getValueType(), InChain,
-                     FusedStep.getValue(0), Target);
+  return DAG.getNode(IsZJ ? RISCVISD::SMX_STEP_ZJ : RISCVISD::SMX_FUSE_J,
+                     SDLoc(Op), Op.getValueType(), InChain, StreamId, Target);
 }
 
 SDValue RISCVTargetLowering::lowerVASTART(SDValue Op, SelectionDAG &DAG) const {
@@ -12163,12 +12181,12 @@ const char *RISCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(SMX_FUSE_READ)
   NODE_NAME_CASE(SMX_FUSE_STEP)
   NODE_NAME_CASE(SMX_FUSE_BL)
-  NODE_NAME_CASE(SMX_FUSE_ZBL)
+  NODE_NAME_CASE(SMX_STEP_ZBL)
   NODE_NAME_CASE(SMX_ZBL)
   NODE_NAME_CASE(SMX_FUSE_J)
-  NODE_NAME_CASE(SMX_FUSE_ZJ)
+  NODE_NAME_CASE(SMX_STEP_ZJ)
   NODE_NAME_CASE(SMX_FUSE_BNL)
-  NODE_NAME_CASE(SMX_FUSE_ZBNL)
+  NODE_NAME_CASE(SMX_STEP_ZBNL)
   NODE_NAME_CASE(SMX_ZBNL)
   }
   // clang-format on
