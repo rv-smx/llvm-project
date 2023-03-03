@@ -756,22 +756,37 @@ static RISCVCC::CondCode getCondFromBranchOpc(unsigned Opc) {
     return RISCVCC::COND_LTU;
   case RISCV::BGEU:
     return RISCVCC::COND_GEU;
+  case RISCV::SMX_FUSE_BL:
+    return RISCVCC::COND_SMX_FUSE_L;
+  case RISCV::SMX_STEP_ZBL:
+    return RISCVCC::COND_SMX_STEP_ZL;
+  case RISCV::SMX_ZBL:
+    return RISCVCC::COND_SMX_ZL;
+  case RISCV::SMX_FUSE_BNL:
+    return RISCVCC::COND_SMX_FUSE_NL;
+  case RISCV::SMX_STEP_ZBNL:
+    return RISCVCC::COND_SMX_STEP_ZNL;
+  case RISCV::SMX_ZBNL:
+    return RISCVCC::COND_SMX_ZNL;
   }
 }
 
 // The contents of values added to Cond are not examined outside of
 // RISCVInstrInfo, giving us flexibility in what to push to it. For RISCV, we
-// push BranchOpcode, Reg1, Reg2.
+// push BranchOpcode, Reg1, Reg2. For SMX extension, we push BranchOpcode and
+// stream ID.
 static void parseCondBranch(MachineInstr &LastInst, MachineBasicBlock *&Target,
                             SmallVectorImpl<MachineOperand> &Cond) {
   // Block ends with fall-through condbranch.
   assert(LastInst.getDesc().isConditionalBranch() &&
          "Unknown conditional branch");
-  Target = LastInst.getOperand(2).getMBB();
+  unsigned NumOp = LastInst.getNumExplicitOperands();
+  Target = LastInst.getOperand(NumOp - 1).getMBB();
   unsigned CC = getCondFromBranchOpc(LastInst.getOpcode());
   Cond.push_back(MachineOperand::CreateImm(CC));
   Cond.push_back(LastInst.getOperand(0));
-  Cond.push_back(LastInst.getOperand(1));
+  if (CC < RISCVCC::COND_SMX_FUSE_L || CC > RISCVCC::COND_SMX_ZNL)
+    Cond.push_back(LastInst.getOperand(1));
 }
 
 const MCInstrDesc &RISCVInstrInfo::getBrCond(RISCVCC::CondCode CC) const {
@@ -790,6 +805,18 @@ const MCInstrDesc &RISCVInstrInfo::getBrCond(RISCVCC::CondCode CC) const {
     return get(RISCV::BLTU);
   case RISCVCC::COND_GEU:
     return get(RISCV::BGEU);
+  case RISCVCC::COND_SMX_FUSE_L:
+    return get(RISCV::SMX_FUSE_BL);
+  case RISCVCC::COND_SMX_STEP_ZL:
+    return get(RISCV::SMX_STEP_ZBL);
+  case RISCVCC::COND_SMX_ZL:
+    return get(RISCV::SMX_ZBL);
+  case RISCVCC::COND_SMX_FUSE_NL:
+    return get(RISCV::SMX_FUSE_BNL);
+  case RISCVCC::COND_SMX_STEP_ZNL:
+    return get(RISCV::SMX_STEP_ZBNL);
+  case RISCVCC::COND_SMX_ZNL:
+    return get(RISCV::SMX_ZBNL);
   }
 }
 
@@ -809,6 +836,18 @@ RISCVCC::CondCode RISCVCC::getOppositeBranchCondition(RISCVCC::CondCode CC) {
     return RISCVCC::COND_GEU;
   case RISCVCC::COND_GEU:
     return RISCVCC::COND_LTU;
+  case RISCVCC::COND_SMX_FUSE_L:
+    return RISCVCC::COND_SMX_FUSE_NL;
+  case RISCVCC::COND_SMX_STEP_ZL:
+    return RISCVCC::COND_SMX_STEP_ZNL;
+  case RISCVCC::COND_SMX_ZL:
+    return RISCVCC::COND_SMX_ZNL;
+  case RISCVCC::COND_SMX_FUSE_NL:
+    return RISCVCC::COND_SMX_FUSE_L;
+  case RISCVCC::COND_SMX_STEP_ZNL:
+    return RISCVCC::COND_SMX_STEP_ZL;
+  case RISCVCC::COND_SMX_ZNL:
+    return RISCVCC::COND_SMX_ZL;
   }
 }
 
@@ -856,8 +895,10 @@ bool RISCVInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
   if (NumTerminators > 2)
     return true;
 
-  // Handle a single unconditional branch.
-  if (NumTerminators == 1 && I->getDesc().isUnconditionalBranch()) {
+  // Handle a single non-SMX unconditional branch.
+  if (NumTerminators == 1 && I->getDesc().isUnconditionalBranch() &&
+      I->getOpcode() != RISCV::SMX_FUSE_J &&
+      I->getOpcode() != RISCV::SMX_STEP_ZJ) {
     TBB = getBranchDestBlock(*I);
     return false;
   }
@@ -871,6 +912,10 @@ bool RISCVInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
   // Handle a conditional branch followed by an unconditional branch.
   if (NumTerminators == 2 && std::prev(I)->getDesc().isConditionalBranch() &&
       I->getDesc().isUnconditionalBranch()) {
+    assert(I->getOpcode() != RISCV::SMX_FUSE_J &&
+           I->getOpcode() != RISCV::SMX_STEP_ZJ &&
+           "SMX unconditional branches can not be followed by conditional "
+           "branches!");
     parseCondBranch(*std::prev(I), TBB, Cond);
     FBB = getBranchDestBlock(*I);
     return false;
@@ -922,8 +967,8 @@ unsigned RISCVInstrInfo::insertBranch(
 
   // Shouldn't be a fall through.
   assert(TBB && "insertBranch must not be told to insert a fallthrough");
-  assert((Cond.size() == 3 || Cond.size() == 0) &&
-         "RISCV branch conditions have two components!");
+  assert((Cond.size() == 3 || Cond.size() == 2 || Cond.size() == 0) &&
+         "RISCV/SMX branch conditions have two/one components!");
 
   // Unconditional branch.
   if (Cond.empty()) {
@@ -935,8 +980,12 @@ unsigned RISCVInstrInfo::insertBranch(
 
   // Either a one or two-way conditional branch.
   auto CC = static_cast<RISCVCC::CondCode>(Cond[0].getImm());
-  MachineInstr &CondMI =
-      *BuildMI(&MBB, DL, getBrCond(CC)).add(Cond[1]).add(Cond[2]).addMBB(TBB);
+  MachineInstrBuilder MIB = BuildMI(&MBB, DL, getBrCond(CC));
+  MIB.add(Cond[1]);
+  if (Cond.size() == 3)
+    MIB.add(Cond[2]);
+  MIB.addMBB(TBB);
+  MachineInstr &CondMI = *MIB;
   if (BytesAdded)
     *BytesAdded += getInstSizeInBytes(CondMI);
 
@@ -990,7 +1039,7 @@ void RISCVInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
 
 bool RISCVInstrInfo::reverseBranchCondition(
     SmallVectorImpl<MachineOperand> &Cond) const {
-  assert((Cond.size() == 3) && "Invalid branch condition!");
+  assert((Cond.size() == 3 || Cond.size() == 2) && "Invalid branch condition!");
   auto CC = static_cast<RISCVCC::CondCode>(Cond[0].getImm());
   Cond[0].setImm(getOppositeBranchCondition(CC));
   return false;
@@ -1019,6 +1068,14 @@ bool RISCVInstrInfo::isBranchOffsetInRange(unsigned BranchOp,
   case RISCV::BGE:
   case RISCV::BLTU:
   case RISCV::BGEU:
+  case RISCV::SMX_FUSE_BL:
+  case RISCV::SMX_STEP_ZBL:
+  case RISCV::SMX_ZBL:
+  case RISCV::SMX_FUSE_BNL:
+  case RISCV::SMX_STEP_ZBNL:
+  case RISCV::SMX_ZBNL:
+  case RISCV::SMX_FUSE_J:
+  case RISCV::SMX_STEP_ZJ:
     return isIntN(13, BrOffset);
   case RISCV::JAL:
   case RISCV::PseudoBR:
