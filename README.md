@@ -136,6 +136,14 @@ void __builtin_riscv_smx_store_f64(size_t stream, size_t selector, double data);
 
 ```c
 /**
+ * @brief Reads the given induction variable stream.
+ *
+ * @param stream induction variable stream ID
+ * @return value of the induction variable stream.
+ */
+size_t __builtin_riscv_smx_read(size_t stream);
+
+/**
  * @brief Steps the given induction variable stream.
  *
  * @param stream induction variable stream ID
@@ -148,39 +156,13 @@ size_t __builtin_riscv_smx_step(size_t stream);
 
 ```c
 /**
- * @brief Steps the given induction variable stream,
- *        then read its value and branch if loop.
- *
- * @param stream induction variable stream ID
- * @return value of the induction variable stream after step.
- */
-size_t __builtin_riscv_smx_step_bl(size_t stream);
-
-/**
- * @brief Steps the given induction variable stream,
- *        then read its value and jump.
- *
- * @param stream induction variable stream ID
- * @return value of the induction variable stream after step.
- */
-size_t __builtin_riscv_smx_step_j(size_t stream);
-
-/**
- * @brief Reads the given induction variable stream,
- *        and branch if not loop.
- *
- * @param stream induction variable stream ID
- * @return value of the induction variable stream after step.
- */
-size_t __builtin_riscv_smx_bnl(size_t stream);
-
-/**
- * @brief Branch condition, just for building SMX branch and hinting,
+ * @brief Stop value of induction variable streams,
+ *        just for constructing SMX branch and hinting,
  *        not an actual instruction.
  *
- * @return value of the condition.
+ * @return The stop value.
  */
-size_t __builtin_riscv_smx_b_cond();
+size_t __builtin_riscv_smx_stop_val();
 ```
 
 ## Command Line Options
