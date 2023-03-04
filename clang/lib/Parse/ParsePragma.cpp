@@ -1294,23 +1294,26 @@ bool Parser::HandlePragmaLoopHint(LoopHint &Hint) {
   bool OptionUnrollAndJam = false;
   bool OptionDistribute = false;
   bool OptionPipelineDisabled = false;
+  bool OptionSMXStreamizeEnabled = false;
   bool StateOption = false;
   if (OptionInfo) { // Pragma Unroll does not specify an option.
     OptionUnroll = OptionInfo->isStr("unroll");
     OptionUnrollAndJam = OptionInfo->isStr("unroll_and_jam");
     OptionDistribute = OptionInfo->isStr("distribute");
     OptionPipelineDisabled = OptionInfo->isStr("pipeline");
+    OptionSMXStreamizeEnabled = OptionInfo->isStr("smx_streamize");
     StateOption = llvm::StringSwitch<bool>(OptionInfo->getName())
                       .Case("vectorize", true)
                       .Case("interleave", true)
                       .Case("vectorize_predicate", true)
                       .Default(false) ||
                   OptionUnroll || OptionUnrollAndJam || OptionDistribute ||
-                  OptionPipelineDisabled;
+                  OptionPipelineDisabled || OptionSMXStreamizeEnabled;
   }
 
   bool AssumeSafetyArg = !OptionUnroll && !OptionUnrollAndJam &&
-                         !OptionDistribute && !OptionPipelineDisabled;
+                         !OptionDistribute && !OptionPipelineDisabled &&
+                         !OptionSMXStreamizeEnabled;
   // Verify loop hint has an argument.
   if (Toks[0].is(tok::eof)) {
     ConsumeAnnotationToken();
@@ -1329,7 +1332,7 @@ bool Parser::HandlePragmaLoopHint(LoopHint &Hint) {
 
     bool Valid = StateInfo &&
                  llvm::StringSwitch<bool>(StateInfo->getName())
-                     .Case("disable", true)
+                     .Case("disable", !OptionSMXStreamizeEnabled)
                      .Case("enable", !OptionPipelineDisabled)
                      .Case("full", OptionUnroll || OptionUnrollAndJam)
                      .Case("assume_safety", AssumeSafetyArg)
@@ -1337,6 +1340,9 @@ bool Parser::HandlePragmaLoopHint(LoopHint &Hint) {
     if (!Valid) {
       if (OptionPipelineDisabled) {
         Diag(Toks[0].getLocation(), diag::err_pragma_pipeline_invalid_keyword);
+      } else if (OptionSMXStreamizeEnabled) {
+        Diag(Toks[0].getLocation(),
+             diag::err_pragma_smx_streamize_invalid_keyword);
       } else {
         Diag(Toks[0].getLocation(), diag::err_pragma_invalid_keyword)
             << /*FullKeyword=*/(OptionUnroll || OptionUnrollAndJam)
@@ -3394,6 +3400,7 @@ static bool ParseLoopHintValue(Preprocessor &PP, Token &Tok, Token PragmaName,
 ///    'unroll_count' '(' loop-hint-value ')'
 ///    'pipeline' '(' disable ')'
 ///    'pipeline_initiation_interval' '(' loop-hint-value ')'
+///    'smx_streamize' '(' enable ')'
 ///
 ///  loop-hint-keyword:
 ///    'enable'
@@ -3456,6 +3463,7 @@ void PragmaLoopHintHandler::HandlePragma(Preprocessor &PP,
                            .Case("unroll_count", true)
                            .Case("pipeline", true)
                            .Case("pipeline_initiation_interval", true)
+                           .Case("smx_streamize", true)
                            .Default(false);
     if (!OptionValid) {
       PP.Diag(Tok.getLocation(), diag::err_pragma_loop_invalid_option)
