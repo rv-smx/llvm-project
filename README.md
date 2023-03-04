@@ -23,6 +23,16 @@ cmake -G Ninja \
 ninja install
 ```
 
+## SMX Pragmas for Clang
+
+You can use Clang's loop hint pragma to enable SMX streamization for a specific loop:
+
+```c
+#pragma clang loop smx_streamize(enable)
+for (int i = 0; i < len; ++i)
+  sum += arr[i];
+```
+
 ## SMX Builtins for Clang
 
 ### Stream Configuration Builtins
