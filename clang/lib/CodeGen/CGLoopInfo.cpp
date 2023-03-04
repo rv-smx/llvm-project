@@ -32,6 +32,28 @@ LoopInfo::createLoopPropertiesMetadata(ArrayRef<Metadata *> LoopProperties) {
   return LoopID;
 }
 
+MDNode *
+LoopInfo::createSMXStreamizeMetadata(const LoopAttributes &Attrs,
+                                     ArrayRef<Metadata *> LoopProperties,
+                                     bool &HasUserTransforms) {
+  LLVMContext &Ctx = Header->getContext();
+
+  if (!Attrs.SMXStreamizeEnabled)
+    return createLoopPropertiesMetadata(LoopProperties);
+
+  SmallVector<Metadata *, 4> Args;
+  Args.push_back(nullptr);
+  Args.append(LoopProperties.begin(), LoopProperties.end());
+
+  Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.smx.streamize.enable")};
+  Args.push_back(MDNode::get(Ctx, Vals));
+
+  MDNode *LoopID = MDNode::getDistinct(Ctx, Args);
+  LoopID->replaceOperandWith(0, LoopID);
+  HasUserTransforms = true;
+  return LoopID;
+}
+
 MDNode *LoopInfo::createPipeliningMetadata(const LoopAttributes &Attrs,
                                            ArrayRef<Metadata *> LoopProperties,
                                            bool &HasUserTransforms) {
@@ -43,37 +65,27 @@ MDNode *LoopInfo::createPipeliningMetadata(const LoopAttributes &Attrs,
   else if (Attrs.PipelineInitiationInterval != 0)
     Enabled = true;
 
-  if (Enabled != true) {
-    SmallVector<Metadata *, 4> NewLoopProperties;
-    if (Enabled == false) {
-      NewLoopProperties.append(LoopProperties.begin(), LoopProperties.end());
-      NewLoopProperties.push_back(
-          MDNode::get(Ctx, {MDString::get(Ctx, "llvm.loop.pipeline.disable"),
-                            ConstantAsMetadata::get(ConstantInt::get(
-                                llvm::Type::getInt1Ty(Ctx), 1))}));
-      LoopProperties = NewLoopProperties;
-    }
-    return createLoopPropertiesMetadata(LoopProperties);
+  SmallVector<Metadata *, 4> NewLoopProperties;
+  NewLoopProperties.append(LoopProperties.begin(), LoopProperties.end());
+
+  if (Enabled == false) {
+    NewLoopProperties.push_back(
+        MDNode::get(Ctx, {MDString::get(Ctx, "llvm.loop.pipeline.disable"),
+                          ConstantAsMetadata::get(ConstantInt::get(
+                              llvm::Type::getInt1Ty(Ctx), 1))}));
   }
 
-  SmallVector<Metadata *, 4> Args;
-  Args.push_back(nullptr);
-  Args.append(LoopProperties.begin(), LoopProperties.end());
-
-  if (Attrs.PipelineInitiationInterval > 0) {
+  if (Enabled == true) {
     Metadata *Vals[] = {
         MDString::get(Ctx, "llvm.loop.pipeline.initiationinterval"),
         ConstantAsMetadata::get(ConstantInt::get(
             llvm::Type::getInt32Ty(Ctx), Attrs.PipelineInitiationInterval))};
-    Args.push_back(MDNode::get(Ctx, Vals));
+    NewLoopProperties.push_back(MDNode::get(Ctx, Vals));
+    HasUserTransforms = true;
   }
 
-  // No follow-up: This is the last transformation.
-
-  MDNode *LoopID = MDNode::getDistinct(Ctx, Args);
-  LoopID->replaceOperandWith(0, LoopID);
-  HasUserTransforms = true;
-  return LoopID;
+  return createSMXStreamizeMetadata(Attrs, NewLoopProperties,
+                                    HasUserTransforms);
 }
 
 MDNode *
@@ -452,7 +464,8 @@ LoopAttributes::LoopAttributes(bool IsParallel)
       VectorizeScalable(LoopAttributes::Unspecified), InterleaveCount(0),
       UnrollCount(0), UnrollAndJamCount(0),
       DistributeEnable(LoopAttributes::Unspecified), PipelineDisabled(false),
-      PipelineInitiationInterval(0), MustProgress(false) {}
+      PipelineInitiationInterval(0), SMXStreamizeEnabled(false),
+      MustProgress(false) {}
 
 void LoopAttributes::clear() {
   IsParallel = false;
@@ -468,6 +481,7 @@ void LoopAttributes::clear() {
   DistributeEnable = LoopAttributes::Unspecified;
   PipelineDisabled = false;
   PipelineInitiationInterval = 0;
+  SMXStreamizeEnabled = false;
   MustProgress = false;
 }
 
@@ -492,8 +506,8 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       Attrs.VectorizeEnable == LoopAttributes::Unspecified &&
       Attrs.UnrollEnable == LoopAttributes::Unspecified &&
       Attrs.UnrollAndJamEnable == LoopAttributes::Unspecified &&
-      Attrs.DistributeEnable == LoopAttributes::Unspecified && !StartLoc &&
-      !EndLoc && !Attrs.MustProgress)
+      Attrs.DistributeEnable == LoopAttributes::Unspecified &&
+      !Attrs.SMXStreamizeEnabled && !StartLoc && !EndLoc && !Attrs.MustProgress)
     return;
 
   TempLoopID = MDNode::getTemporary(Header->getContext(), None);
@@ -544,6 +558,7 @@ void LoopInfo::finish() {
     AfterJam.UnrollCount = Attrs.UnrollCount;
     AfterJam.PipelineDisabled = Attrs.PipelineDisabled;
     AfterJam.PipelineInitiationInterval = Attrs.PipelineInitiationInterval;
+    AfterJam.SMXStreamizeEnabled = Attrs.SMXStreamizeEnabled;
 
     // If this loop is subject of an unroll-and-jam by the parent loop, and has
     // an unroll-and-jam annotation itself, we have to decide whether to first
@@ -667,6 +682,7 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       case LoopHintAttr::VectorizeWidth:
       case LoopHintAttr::InterleaveCount:
       case LoopHintAttr::PipelineInitiationInterval:
+      case LoopHintAttr::SMXStreamizeEnabled:
         llvm_unreachable("Options cannot be disabled.");
         break;
       }
@@ -688,6 +704,9 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
         break;
       case LoopHintAttr::Distribute:
         setDistributeState(true);
+        break;
+      case LoopHintAttr::SMXStreamizeEnabled:
+        setSMXStreamizeEnabled(true);
         break;
       case LoopHintAttr::UnrollCount:
       case LoopHintAttr::UnrollAndJamCount:
@@ -717,6 +736,7 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       case LoopHintAttr::Distribute:
       case LoopHintAttr::PipelineDisabled:
       case LoopHintAttr::PipelineInitiationInterval:
+      case LoopHintAttr::SMXStreamizeEnabled:
         llvm_unreachable("Options cannot be used to assume mem safety.");
         break;
       }
@@ -739,6 +759,7 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       case LoopHintAttr::PipelineDisabled:
       case LoopHintAttr::PipelineInitiationInterval:
       case LoopHintAttr::VectorizePredicate:
+      case LoopHintAttr::SMXStreamizeEnabled:
         llvm_unreachable("Options cannot be used with 'full' hint.");
         break;
       }
@@ -780,6 +801,7 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       case LoopHintAttr::Interleave:
       case LoopHintAttr::Distribute:
       case LoopHintAttr::PipelineDisabled:
+      case LoopHintAttr::SMXStreamizeEnabled:
         llvm_unreachable("Options cannot be assigned a value.");
         break;
       }

@@ -79,6 +79,9 @@ struct LoopAttributes {
   /// Value for llvm.loop.pipeline.iicount metadata.
   unsigned PipelineInitiationInterval;
 
+  /// Value for llvm.loop.smx.streamize.enable metadata.
+  bool SMXStreamizeEnabled;
+
   /// Value for whether the loop is required to make progress.
   bool MustProgress;
 };
@@ -148,6 +151,10 @@ private:
   /// @return A LoopID (metadata node) that can be used for the llvm.loop
   ///         annotation or followup-attribute.
   /// @{
+  llvm::MDNode *
+  createSMXStreamizeMetadata(const LoopAttributes &Attrs,
+                             llvm::ArrayRef<llvm::Metadata *> LoopProperties,
+                             bool &HasUserTransforms);
   llvm::MDNode *
   createPipeliningMetadata(const LoopAttributes &Attrs,
                            llvm::ArrayRef<llvm::Metadata *> LoopProperties,
@@ -281,6 +288,9 @@ public:
   void setPipelineInitiationInterval(unsigned C) {
     StagedAttrs.PipelineInitiationInterval = C;
   }
+
+  /// Set the SMX streamize enabled state.
+  void setSMXStreamizeEnabled(bool S) { StagedAttrs.SMXStreamizeEnabled = S; }
 
   /// Set no progress for the next loop pushed.
   void setMustProgress(bool P) { StagedAttrs.MustProgress = P; }
