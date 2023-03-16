@@ -19411,6 +19411,10 @@ Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
     ID = Intrinsic::riscv_smx_cfg_addr;
     IntrinsicTypes = {Ops[0]->getType()};
     break;
+  case RISCV::BI__builtin_riscv_smx_ready:
+    ID = Intrinsic::riscv_smx_ready;
+    IntrinsicTypes = {Ops[0]->getType()};
+    break;
   case RISCV::BI__builtin_riscv_smx_load_i8:
   case RISCV::BI__builtin_riscv_smx_load_i16:
   case RISCV::BI__builtin_riscv_smx_load_i32:

@@ -1639,9 +1639,11 @@ let TargetPrefix = "riscv" in {
                    LLVMMatchType<0>, LLVMMatchType<0>, LLVMMatchType<0>],
                   [IntrWillReturn, IntrNoMem, IntrHasSideEffects]>;
 
+  // Input: (num of configs)
   def int_riscv_smx_ready
-      : ClangBuiltin<"__builtin_riscv_smx_ready">,
-        Intrinsic<[], [], [IntrWillReturn, IntrNoMem, IntrHasSideEffects]>;
+      : Intrinsic<[],
+                  [llvm_anyint_ty],
+                  [IntrWillReturn, IntrNoMem, IntrHasSideEffects]>;
 
   def int_riscv_smx_end
       : ClangBuiltin<"__builtin_riscv_smx_end">,
