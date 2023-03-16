@@ -121,6 +121,13 @@ def smx_stream_arg : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isUInt<5>(Imm);}]
   let OperandNamespace = "RISCVOp";
 }
 
+def smx_conf_num_arg : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isUInt<7>(Imm);}]> {
+  let ParserMatchClass = UImmAsmOperand<7>;
+  let DecoderMethod = "decodeUImmOperand<7>";
+  let OperandType = "OPERAND_UIMM7";
+  let OperandNamespace = "RISCVOp";
+}
+
 def smx_sel_arg : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isUInt<7>(Imm);}]> {
   let ParserMatchClass = UImmAsmOperand<7>;
   let DecoderMethod = "decodeUImmOperand<7>";
@@ -178,7 +185,18 @@ let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in {
     let imm12{4-0} = dep1;
   }
 
-  class SMXInstHint<bits<7> funct7, bits<3> funct3, string opcodestr>
+  class SMXInstReady<bits<7> funct7, bits<3> funct3, string opcodestr>
+      : RVInstR<funct7, funct3, OPC_CUSTOM_0, (outs),
+                (ins smx_conf_num_arg:$conf_num), opcodestr, "$conf_num"> {
+    bits<7> conf_num;
+                  
+    let rs2{4-2} = 0;
+    let rs2{1-0} = conf_num{6-5};
+    let rs1 = conf_num{4-0};
+    let rd = 0;
+  }
+
+  class SMXInstEnd<bits<7> funct7, bits<3> funct3, string opcodestr>
       : RVInstR<funct7, funct3, OPC_CUSTOM_0, (outs), (ins), opcodestr, ""> {
     let rs2 = 0;
     let rs1 = 0;
@@ -267,8 +285,8 @@ let Predicates = [HasExtXsmx] in {
   def SMX_CFG_MS    : SMXInstCfgMS   <           0, 0b001, "smx.cfg.ms">, Sched<[]>;
   def SMX_CFG_MS_P  : SMXInstCfgMS   <           1, 0b001, "smx.cfg.ms.p">, Sched<[]>;
   def SMX_CFG_ADDR  : SMXInstCfgAddr <              0b010, "smx.cfg.addr">, Sched<[]>;
-  def SMX_READY     : SMXInstHint    <   0b0000000, 0b011, "smx.ready">, Sched<[]>;
-  def SMX_END       : SMXInstHint    <   0b0000001, 0b011, "smx.end">, Sched<[]>;
+  def SMX_READY     : SMXInstReady   <   0b0000000, 0b011, "smx.ready">, Sched<[]>;
+  def SMX_END       : SMXInstEnd     <   0b0000001, 0b011, "smx.end">, Sched<[]>;
   def SMX_LB        : SMXInstLoad    <GPR, 0b00, 0, 0b100, "smx.lb">, Sched<[]>;
   def SMX_LBU       : SMXInstLoad    <GPR, 0b00, 1, 0b100, "smx.lbu">, Sched<[]>;
   def SMX_LH        : SMXInstLoad    <GPR, 0b01, 0, 0b100, "smx.lh">, Sched<[]>;
@@ -361,7 +379,8 @@ let Predicates = [HasExtXsmx] in {
 
   /// Hint instructions
 
-  def : Pat<(int_riscv_smx_ready), (SMX_READY)>;
+  def : Pat<(int_riscv_smx_ready smx_conf_num_arg:$conf_num),
+            (SMX_READY smx_conf_num_arg:$conf_num)>;
   def : Pat<(int_riscv_smx_end), (SMX_END)>;
 
   /// Loads
