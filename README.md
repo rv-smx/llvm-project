@@ -66,6 +66,8 @@ void __builtin_riscv_smx_cfg_iv(size_t init_val, size_t step_val,
  * @param stride1 stride of the first address factor
  * @param dep1 dependent stream ID of the first address factor
  * @param kind1 kind of the first address factor
+ *              0 - induction variable stream factor
+ *              otherwise - memory stream factor
  * @param prefetch non-zero if enable prefetch on this stream
  * @param width log2(load width), e.g. 4 for 16-byte load
  */
