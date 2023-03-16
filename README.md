@@ -95,8 +95,10 @@ void __builtin_riscv_smx_cfg_addr(size_t stride1, size_t dep1, size_t kind1,
 ```c
 /**
  * @brief Marks stream configuration complete.
+ *
+ * @param conf_num number of previous configurations.
  */
-void __builtin_riscv_smx_ready();
+void __builtin_riscv_smx_ready(size_t conf_num);
 
 /**
  * @brief Marks the end of all stream operations.
