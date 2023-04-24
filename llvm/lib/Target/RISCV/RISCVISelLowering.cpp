@@ -7608,9 +7608,10 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
       }
 
       SDValue Chain = N->getOperand(0);
-      Results.push_back(
+      SDValue Load =
           DAG.getNode(Opc, DL, {Subtarget.getXLenVT(), Chain.getValueType()},
-                      {Chain, N->getOperand(2), N->getOperand(3)}));
+                      {Chain, N->getOperand(2), N->getOperand(3)});
+      Results.push_back(DAG.getNode(ISD::TRUNCATE, DL, VT, Load));
       Results.push_back(Chain);
       break;
     }
