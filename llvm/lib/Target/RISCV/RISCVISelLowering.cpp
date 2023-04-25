@@ -8583,7 +8583,8 @@ static SDValue combineExtOfSMXLoad(SDNode *N,
 
   // Fold ([s|z]ext[_inreg] (smx_[s|z]ext_load ...)) -> (smx_[s|z]ext_load ...).
   if (LoadInfo->ExtType != ISD::NON_EXTLOAD) {
-    if (!VT.bitsEq(XLenVT) || !N0.hasOneUse())
+    if (!VT.bitsEq(XLenVT) ||
+        (!N0.hasOneUse() && LoadInfo->ExtType != ISD::EXTLOAD))
       return SDValue();
 
     if (Opc == ISD::SIGN_EXTEND || Opc == ISD::ZERO_EXTEND) {
@@ -8600,7 +8601,7 @@ static SDValue combineExtOfSMXLoad(SDNode *N,
 
     SDValue ExtLoad = getSMXLoadFromInfo(*LoadInfo, DAG, DL, XLenVT);
     DCI.CombineTo(N, ExtLoad);
-    DAG.ReplaceAllUsesOfValueWith(SDValue(N0Node, 1), ExtLoad.getValue(1));
+    DCI.CombineTo(N0.getNode(), ExtLoad, ExtLoad.getValue(1));
 
     if (Opc == ISD::SIGN_EXTEND_INREG) {
       DCI.AddToWorklist(ExtLoad.getNode());
