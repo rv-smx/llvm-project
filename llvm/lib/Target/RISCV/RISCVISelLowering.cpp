@@ -9469,7 +9469,7 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
   case ISD::ANY_EXTEND:
     if (Subtarget.hasExtXsmx())
       return combineExtOfSMXLoad(N, DCI, Subtarget);
-    return SDValue();
+    break;
   case RISCVISD::SELECT_CC: {
     // Transform
     SDValue LHS = N->getOperand(0);
@@ -9788,6 +9788,18 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
 
     return SDValue();
   }
+  case RISCVISD::SMX_TRUNC_STORE_I8:
+    if (SimplifyDemandedLowBitsHelper(3, 8))
+      return SDValue(N, 0);
+    break;
+  case RISCVISD::SMX_TRUNC_STORE_I16:
+    if (SimplifyDemandedLowBitsHelper(3, 16))
+      return SDValue(N, 0);
+    break;
+  case RISCVISD::SMX_TRUNC_STORE_I32:
+    if (SimplifyDemandedLowBitsHelper(3, 32))
+      return SDValue(N, 0);
+    break;
   }
 
   return SDValue();
